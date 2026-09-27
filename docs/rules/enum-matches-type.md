@@ -46,3 +46,14 @@ class Dto {
 - An array validated without `{ each: true }` is reported only by [`each-matches-array`](./each-matches-array.md).
 - A type inferred from a default value (`readonly order = SortOrder.Asc`) is not treated as a contract:
   only annotated types are checked for "enum wider than the property".
+
+## When not to use it
+
+- Query DTOs that deliberately keep the property as a plain `string` and narrow it after validation.
+  The rule reports this because the type is wider than what the validator accepts. Either type the
+  property with the enum (recommended) or disable the rule for those DTOs:
+
+  ```js
+  // eslint.config.mjs
+  { files: ['src/**/*.query.dto.ts'], rules: { 'nest-drift/enum-matches-type': 'off' } }
+  ```

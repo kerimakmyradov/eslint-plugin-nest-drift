@@ -70,6 +70,22 @@ Rules stay silent when they cannot be sure: `any`, `unknown`, generics, your own
 discriminated `@Type`, non-literal options. False positives are treated as bugs — please
 [open an issue](https://github.com/kerimakmyradov/eslint-plugin-nest-drift/issues).
 
+## Disabling a rule
+
+Every rule page has a **When not to use it** section. To silence a single intentional mismatch,
+disable the rule on that line and say why:
+
+```ts
+// eslint-disable-next-line nest-drift/api-property-matches-type -- serialized as string by BigIntInterceptor
+@ApiProperty({ type: String }) id: bigint;
+```
+
+To turn a rule off for part of the codebase, add an override after `nestDrift.configs.recommended`:
+
+```js
+{ files: ['src/legacy/**/*.ts'], rules: { 'nest-drift/nullable-matches-type': 'off' } }
+```
+
 ## Use it together with `@darraghor/eslint-plugin-nestjs-typed`
 
 [`@darraghor/eslint-plugin-nestjs-typed`](https://github.com/darraghoriordan/eslint-plugin-nestjs-typed)
