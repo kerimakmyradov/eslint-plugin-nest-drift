@@ -35,19 +35,23 @@ const eslint = legacy
       ],
     });
 
-const [result] = await eslint.lintFiles(['create-order.dto.ts']);
-const actual = result.messages.map((m) => `${m.line}:${m.ruleId}`).sort();
+const results = await eslint.lintFiles(['create-order.dto.ts', 'shape-guards.ts']);
+const actual = results
+  .flatMap((r) => r.messages.map((m) => `${r.filePath.split(/[\\/]/).pop()}:${m.line}:${m.ruleId}`))
+  .sort();
 const expected = [
-  '11:nest-drift/validator-matches-type',
-  '12:nest-drift/enum-matches-type',
-  '13:nest-drift/nested-type-matches',
-  '14:nest-drift/each-matches-array',
-  '16:nest-drift/nullable-matches-type',
-  '16:nest-drift/nullable-matches-type',
+  'create-order.dto.ts:11:nest-drift/validator-matches-type',
+  'create-order.dto.ts:12:nest-drift/enum-matches-type',
+  'create-order.dto.ts:13:nest-drift/nested-type-matches',
+  'create-order.dto.ts:14:nest-drift/each-matches-array',
+  'create-order.dto.ts:16:nest-drift/nullable-matches-type',
+  'create-order.dto.ts:16:nest-drift/nullable-matches-type',
+  'shape-guards.ts:8:nest-drift/guard-discriminant-matches-type',
+  'shape-guards.ts:9:nest-drift/guard-in-check-matches-type',
 ].sort();
 
 if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-  console.error('Smoke test failed.\nExpected:', expected, '\nActual:', result.messages);
+  console.error('Smoke test failed.\nExpected:', expected, '\nActual:', actual);
   process.exit(1);
 }
 console.log(`Smoke test passed on ESLint ${ESLint.version} (${legacy ? 'eslintrc' : 'flat'}): ${actual.length} expected problems reported.`);
