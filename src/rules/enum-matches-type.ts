@@ -7,6 +7,7 @@ import {
   enumValueTypes,
   isCollection,
   isCoveredBy,
+  isPlainPrimitiveOf,
   isUncheckable,
   isValueAssignable,
   nonNullish,
@@ -56,7 +57,7 @@ export const enumMatchesType = createRule({
             const allowed = symbol && enumValueTypes(symbol, checker);
             if (!allowed) continue;
             // The property must not declare values the enum does not contain…
-            const typeCovered = isCoveredBy(checked, allowed, checker);
+            const typeCovered = isCoveredBy(checked, allowed, checker) || isPlainPrimitiveOf(checked, allowed, checker);
             // …and the enum must not allow values the property type cannot hold.
             // Only meaningful when every enum value is a literal (a non-`as const` object widens to `string`).
             // A type inferred from a `readonly` default (`order = SortOrder.Asc`) is not a declared contract.

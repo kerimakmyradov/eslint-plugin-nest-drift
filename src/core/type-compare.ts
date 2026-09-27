@@ -161,6 +161,7 @@ export function collectionElementType(type: ts.Type, checker: ts.TypeChecker): t
  */
 export function isValueAssignable(source: ts.Type, target: ts.Type, checker: ts.TypeChecker): boolean {
   if (checker.isTypeAssignableTo(source, target)) return true;
+  if (target.isUnion()) return target.types.some((member) => isValueAssignable(source, member, checker));
   return source.isLiteral() && target.isLiteral() && source.value === target.value;
 }
 
@@ -169,14 +170,37 @@ export function isCoveredBy(type: ts.Type, allowed: readonly ts.Type[], checker:
   return nonNullish(type).every((t) => allowed.some((a) => isValueAssignable(t, a, checker)));
 }
 
-/** Member value types of an enum, or of a const object used as an enum. */
+/** Member value types of an enum, of a const object used as an enum, or of an array of values. */
 export function enumValueTypes(symbol: ts.Symbol, checker: ts.TypeChecker): ts.Type[] | undefined {
   if (symbol.flags & ts.SymbolFlags.Enum) {
     return [...constituents(checker.getDeclaredTypeOfSymbol(symbol))];
   }
   if (symbol.flags & ts.SymbolFlags.Variable) {
-    const props = checker.getTypeOfSymbol(symbol).getProperties();
+    const type = checker.getTypeOfSymbol(symbol);
+    if (checker.isTupleType(type) || checker.isArrayType(type)) {
+      // Element types as declared: a widened `Step[]` stays one non-literal `Step`, so no subset claim is made.
+      const elements = [...checker.getTypeArguments(type as ts.TypeReference)];
+      return elements.length > 0 ? elements : undefined;
+    }
+    const props = type.getProperties();
     return props.length > 0 ? props.map((p) => checker.getTypeOfSymbol(p)) : undefined;
   }
   return undefined;
+}
+
+/**
+ * A plain `string` / `number` property holding enum values of the same kind: an imprecise type,
+ * not a runtime mismatch (`@IsEnum(Color) color: string`).
+ */
+export function isPlainPrimitiveOf(type: ts.Type, allowed: readonly ts.Type[], checker: ts.TypeChecker): boolean {
+  const parts = nonNullish(type);
+  const partKinds = new Set(parts.map((part) => kindOf(part, checker)));
+  const valueKinds = new Set(allowed.flatMap((value) => constituents(value).map((t) => kindOf(t, checker))));
+  return (
+    parts.length > 0 &&
+    parts.every(
+      (part) => !part.isLiteral() && (part.flags & (ts.TypeFlags.StringLike | ts.TypeFlags.NumberLike)) !== 0,
+    ) &&
+    [...valueKinds].every((kind) => partKinds.has(kind))
+  );
 }

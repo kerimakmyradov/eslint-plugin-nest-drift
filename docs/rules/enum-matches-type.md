@@ -17,7 +17,7 @@ The same happens when an enum gains a value that the property type does not allo
 ```ts
 class Dto {
   @IsEnum(Status) currency: Currency;           // different enum
-  @IsEnum(Status) status: string;               // property accepts values the enum rejects
+  @IsEnum(Status) status: number;               // string enum on a number property
   @IsEnum(Status) closed: Status.Closed;        // enum accepts values the property cannot hold
   @IsIn(['asc', 'desc', 'random']) order: 'asc' | 'desc';
 }
@@ -33,6 +33,8 @@ class Dto {
   @IsEnum(Status) status: Status;
   @IsEnum(Status) status2: `${Status}`;         // same runtime values
   @IsEnum(Side) side: Side;                     // const objects work too
+  @IsEnum(STEPS) step: Step;                    // `as const` arrays of values work too
+  @IsEnum(Color) color: string;                 // plain string: imprecise, but not a runtime bug
   @IsEnum(Status, { each: true }) history: Status[];
   @IsIn(['asc', 'desc']) order: 'asc' | 'desc';
 }
@@ -41,7 +43,10 @@ class Dto {
 ## Notes
 
 - Values are compared the way they exist at runtime: `Status.Open = 'open'` and `'open'` are equal.
-- For an object without `as const` only the "property wider than enum" direction is checked.
+- For an object or array without `as const` the values are widened, so only a kind mismatch
+  (`number` property, string values) or a different enum is reported.
+- A plain `string` / `number` property holding enum values of the same kind is not reported: the
+  validator is stricter than the type, which is safe at runtime.
 - Non-literal `@IsIn()` arguments (variables, spreads) are skipped.
 - An array validated without `{ each: true }` is reported only by [`each-matches-array`](./each-matches-array.md).
 - A type inferred from a default value (`readonly order = SortOrder.Asc`) is not treated as a contract:
@@ -49,9 +54,9 @@ class Dto {
 
 ## When not to use it
 
-- Query DTOs that deliberately keep the property as a plain `string` and narrow it after validation.
-  The rule reports this because the type is wider than what the validator accepts. Either type the
-  property with the enum (recommended) or disable the rule for those DTOs:
+- DTOs whose property type is a literal union or another enum that intentionally differs from the
+  validated values (plain `string` / `number` properties are not reported). Type the property with the
+  enum (recommended) or disable the rule for those DTOs:
 
   ```js
   // eslint.config.mjs
