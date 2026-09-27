@@ -3,6 +3,28 @@ import { ruleTester } from '../rule-tester';
 
 ruleTester.run('api-property-matches-type', apiPropertyMatchesType, {
   valid: [
+    // values the checker cannot type are not judged
+    `import { ApiProperty } from '@nestjs/swagger';
+     declare const cfg: any;
+     declare const untyped: Record<string, any>;
+     const Roles = { Admin: cfg.admin, User: 'user' };
+     const VALUES = Object.values(untyped);
+     class Dto { @ApiProperty({ enum: Roles }) role!: string; @ApiProperty({ enum: VALUES }) value!: string; }`,
+    `import { ApiProperty } from '@nestjs/swagger';
+     enum Step { Day = 'day', Week = 'week', Month = 'month' }
+     const STEPS = [Step.Day, Step.Week];
+     class Dto { @ApiProperty({ enum: STEPS }) step!: Step.Day | Step.Week; }`,
+    // enum documented on a plain string / number, and enum given as an `as const` array
+    `import { ApiProperty } from '@nestjs/swagger';
+     enum Status { Open = 'open' }
+     enum Level { Low, High }
+     enum Step { Day = 'day', Week = 'week', Month = 'month' }
+     const STEPS = [Step.Day, Step.Week] as const;
+     class Dto {
+       @ApiProperty({ enum: Status }) status!: string;
+       @ApiProperty({ enum: Level }) level!: number;
+       @ApiProperty({ enum: STEPS }) step!: Step;
+     }`,
     // review: raw OpenAPI array forms
     `import { ApiProperty } from '@nestjs/swagger';
      import { Type } from 'class-transformer';
@@ -62,6 +84,27 @@ ruleTester.run('api-property-matches-type', apiPropertyMatchesType, {
      }`,
   ],
   invalid: [
+    // widened values of the wrong kind are still reported
+    {
+      code: `import { ApiProperty } from '@nestjs/swagger';
+             const Side = { Buy: 'buy', Sell: 'sell' };
+             class Dto { @ApiProperty({ enum: Side }) side!: number; }`,
+      errors: [{ messageId: 'enumMismatch' }],
+    },
+    {
+      code: `import { ApiProperty } from '@nestjs/swagger';
+             enum Step { Day = 'day' }
+             enum Other { Year = 'year' }
+             const STEPS = [Step.Day] as const;
+             class Dto { @ApiProperty({ enum: STEPS }) step!: Other; }`,
+      errors: [{ messageId: 'enumMismatch' }],
+    },
+    {
+      code: `import { ApiProperty } from '@nestjs/swagger';
+             enum Status { Open = 'open' }
+             class Dto { @ApiProperty({ enum: Status }) status!: number; }`,
+      errors: [{ messageId: 'enumMismatch' }],
+    },
     // review: raw OpenAPI array whose items contradict the element type
     {
       code: `import { ApiProperty } from '@nestjs/swagger';

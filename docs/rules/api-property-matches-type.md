@@ -40,6 +40,9 @@ class Dto {
 
 - Types are compared as they look in JSON: `Date` and any class with a string-returning `toJSON()`
   (Mongo `ObjectId`, `Decimal`) count as strings.
+- `enum` is reported only when the documented values cannot be held by the property
+  (`enum: Status` on `currency: Currency` or on `status: number`). Documenting a subset of the
+  property's values, or an enum on a plain `string`, is fine. `enum` may be an `as const` array.
 - Raw OpenAPI arrays are understood: `{ type: 'array', items: { type: 'string' } }` and `{ type: Array }`.
 - `format: 'binary'` / `'byte'` (file uploads, base64) are not compared with the TypeScript type.
 - Shared options objects and spreads (`@ApiProperty(OPTS)`) are skipped.

@@ -3,6 +3,33 @@ import { ruleTester } from '../rule-tester';
 
 ruleTester.run('enum-matches-type', enumMatchesType, {
   valid: [
+    // widened arrays against literal-typed properties with the same runtime values
+    `import { IsEnum } from 'class-validator';
+     enum Step { Day = 'day', Week = 'week' }
+     const VALUES = Object.values(Step);
+     const STEPS = [Step.Day, Step.Week];
+     class Dto { @IsEnum(VALUES) a!: \`\${Step}\`; @IsEnum(STEPS) b!: 'day' | 'week'; }`,
+    // a widened (non-const) array of values: its element type is the whole enum, so no subset claim
+    `import { IsEnum } from 'class-validator';
+     enum Step { Day = 'day', Week = 'week', Month = 'month' }
+     const STEPS = [Step.Day, Step.Week];
+     const TYPED: readonly Step[] = [Step.Day];
+     class Dto { @IsEnum(STEPS) a!: Step.Day | Step.Week; @IsEnum(TYPED) b!: Step.Day; }`,
+    // template literal and heterogeneous values
+    `import { IsEnum } from 'class-validator';
+     enum Size { S = '1px', M = '2px' }
+     enum Mixed { A = 1, B = 'b' }
+     class Dto { @IsEnum(Size) size!: \`\${number}px\`; @IsEnum(Mixed) mixed!: string | number; }`,
+    // a plain primitive of the same kind is only an imprecise type, not a runtime bug
+    `import { IsEnum } from 'class-validator';
+     enum Color { Red = 'red', Blue = 'blue' }
+     enum Level { Low, High }
+     class Dto { @IsEnum(Color) color!: string; @IsEnum(Level) level!: number; }`,
+    // an \`as const\` array of values is a valid enum argument
+    `import { IsEnum } from 'class-validator';
+     enum Step { Day = 'day', Week = 'week', Month = 'month' }
+     const STEPS = [Step.Day, Step.Week] as const;
+     class Dto { @IsEnum(STEPS) step!: Step.Day | Step.Week; }`,
     // review: missing each on an array is each-matches-array's report, not ours
     `import { IsEnum, IsIn } from 'class-validator';
      enum Status { Open = 'open' }
@@ -56,11 +83,20 @@ ruleTester.run('enum-matches-type', enumMatchesType, {
              class Dto { @IsEnum(Status) currency!: Currency; }`,
       errors: [{ messageId: 'enumMismatch', data: { enumName: 'Status', property: 'currency', actual: 'Currency' } }],
     },
-    // property wider than the enum
+    // a primitive of another kind than the enum values
     {
       code: `import { IsEnum } from 'class-validator';
              enum Status { Open = 'open' }
-             class Dto { @IsEnum(Status) status!: string; }`,
+             class Dto { @IsEnum(Status) status!: number; }`,
+      errors: [{ messageId: 'enumMismatch' }],
+    },
+    // array enum argument whose values do not fit the property
+    {
+      code: `import { IsEnum } from 'class-validator';
+             enum Step { Day = 'day', Week = 'week' }
+             enum Other { Year = 'year' }
+             const STEPS = [Step.Day, Step.Week] as const;
+             class Dto { @IsEnum(STEPS) step!: Other; }`,
       errors: [{ messageId: 'enumMismatch' }],
     },
     // enum wider than the property
