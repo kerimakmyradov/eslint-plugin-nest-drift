@@ -33,6 +33,8 @@ export {
   nonNullish,
   type Kind,
 } from './type-compare';
+export { getTsDecorators, tsOptionKeys, type TsDecoratorInfo } from './ts-decorators';
+export { COLUMN_DECORATORS, columnInfo, type ColumnInfo, type ColumnKind } from './typeorm';
 export { matchesTypeRef, resolveTypeRef, type TypeRef } from './type-ref';
 export {
   conjuncts,

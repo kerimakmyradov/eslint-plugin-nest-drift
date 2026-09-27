@@ -11,6 +11,7 @@ const ALL_RULES = [
   'guard-in-check-matches-type',
   'nested-type-matches',
   'nullable-matches-type',
+  'plain-to-instance-matches-source',
   'validator-matches-type',
 ];
 const OPT_IN_RULES = ['guard-covers-required-properties'];

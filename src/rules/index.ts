@@ -7,6 +7,7 @@ import { guardDiscriminantMatchesType } from './guard-discriminant-matches-type'
 import { guardInCheckMatchesType } from './guard-in-check-matches-type';
 import { nestedTypeMatches } from './nested-type-matches';
 import { nullableMatchesType } from './nullable-matches-type';
+import { plainToInstanceMatchesSource } from './plain-to-instance-matches-source';
 import { validatorMatchesType } from './validator-matches-type';
 
 export const rules = {
@@ -20,4 +21,5 @@ export const rules = {
   'guard-in-check-matches-type': guardInCheckMatchesType,
   'guard-covers-required-properties': guardCoversRequiredProperties,
   'column-matches-type': columnMatchesType,
+  'plain-to-instance-matches-source': plainToInstanceMatchesSource,
 };

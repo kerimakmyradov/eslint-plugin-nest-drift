@@ -10,5 +10,5 @@
     "skipLibCheck": true,
     "types": []
   },
-  "include": ["file.ts", "validators.ts"]
+  "include": ["file.ts", "validators.ts", "dtos.ts"]
 }
