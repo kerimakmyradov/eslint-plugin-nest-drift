@@ -1,6 +1,6 @@
 {
   "name": "eslint-plugin-nest-drift",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "ESLint rules that catch drift between class-validator / class-transformer / Swagger decorators and TypeScript types in NestJS",
   "license": "MIT",
   "author": "Kerim <kerimakmyradov28@gmail.com>",
