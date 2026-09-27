@@ -5,11 +5,11 @@ import ts from 'typescript';
 export const KNOWN_MODULES = ['class-validator', 'class-transformer', '@nestjs/swagger'] as const;
 export type KnownModule = (typeof KNOWN_MODULES)[number];
 
-export interface DecoratorInfo {
+export interface DecoratorInfo<M extends string = KnownModule> {
   node: TSESTree.Decorator;
   /** Original exported name, even when imported under an alias or re-exported. */
   name: string;
-  module: KnownModule;
+  module: M;
   /** Call arguments; empty when the decorator is used without a call. */
   args: readonly TSESTree.CallExpressionArgument[];
   /** Properties of the last argument when it is an object literal (validation / swagger options). */
@@ -61,7 +61,16 @@ export function getKnownDecorators(
   property: TSESTree.PropertyDefinition,
   services: ParserServicesWithTypeInformation,
 ): DecoratorInfo[] {
-  const result: DecoratorInfo[] = [];
+  return getDecorators(property, services, KNOWN_MODULES);
+}
+
+/** Decorators on a class property that resolve to an export of one of `modules` (npm package names). */
+export function getDecorators<M extends string>(
+  property: TSESTree.PropertyDefinition,
+  services: ParserServicesWithTypeInformation,
+  modules: readonly M[],
+): DecoratorInfo<M>[] {
+  const result: DecoratorInfo<M>[] = [];
   for (const decorator of property.decorators) {
     const expression = decorator.expression;
     const callee = expression.type === AST_NODE_TYPES.CallExpression ? expression.callee : expression;
@@ -70,12 +79,12 @@ export function getKnownDecorators(
     const declaration = symbol?.declarations?.[0];
     if (!symbol || !declaration) continue;
     const module = packageOfFile(declaration.getSourceFile().fileName);
-    if (!module || !(KNOWN_MODULES as readonly string[]).includes(module)) continue;
+    if (!module || !(modules as readonly string[]).includes(module)) continue;
     const args = expression.type === AST_NODE_TYPES.CallExpression ? expression.arguments : [];
     result.push({
       node: decorator,
       name: symbol.getName(),
-      module: module as KnownModule,
+      module: module as M,
       args,
       options: readOptions(args),
     });
@@ -91,7 +100,7 @@ export type OptionState = 'true' | 'false' | 'absent' | 'unknown';
  * and anything that cannot be decided is `unknown` so absence-based checks can stay silent.
  */
 export function readBooleanOption(
-  decorator: DecoratorInfo,
+  decorator: DecoratorInfo<string>,
   key: string,
   services: ParserServicesWithTypeInformation,
 ): OptionState {

@@ -4,6 +4,7 @@
  */
 export { createRule, type NestDriftDocs } from './create-rule';
 export {
+  getDecorators,
   getKnownDecorators,
   isTrueLiteral,
   KNOWN_MODULES,
@@ -23,6 +24,7 @@ export {
   isCollection,
   isCollectionType,
   isCoveredBy,
+  isEnumMismatch,
   isNullish,
   isUncheckable,
   isValueAssignable,

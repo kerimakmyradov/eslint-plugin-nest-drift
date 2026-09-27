@@ -1,5 +1,4 @@
 import { AST_NODE_TYPES, ESLintUtils } from '@typescript-eslint/utils';
-import ts from 'typescript';
 import { createRule } from '../core/create-rule';
 import { getKnownDecorators, propertyName, readBooleanOption, resolveSymbol } from '../core/decorators';
 import {
@@ -7,9 +6,8 @@ import {
   enumValueTypes,
   isCollection,
   isCoveredBy,
-  isPlainPrimitiveOf,
+  isEnumMismatch,
   isUncheckable,
-  isValueAssignable,
   nonNullish,
 } from '../core/type-compare';
 
@@ -56,16 +54,7 @@ export const enumMatchesType = createRule({
             const symbol = resolveSymbol(first, services);
             const allowed = symbol && enumValueTypes(symbol, checker);
             if (!allowed) continue;
-            // The property must not declare values the enum does not contain…
-            const typeCovered = isCoveredBy(checked, allowed, checker) || isPlainPrimitiveOf(checked, allowed, checker);
-            // …and the enum must not allow values the property type cannot hold.
-            // Only meaningful when every enum value is a literal (a non-`as const` object widens to `string`).
-            // A type inferred from a `readonly` default (`order = SortOrder.Asc`) is not a declared contract.
-            const enumCovered =
-              !node.typeAnnotation ||
-              !allowed.every((a) => a.flags & ts.TypeFlags.Literal) ||
-              allowed.every((a) => nonNullish(checked).some((t) => isValueAssignable(a, t, checker)));
-            if (!typeCovered || !enumCovered) {
+            if (isEnumMismatch(checked, allowed, checker, node.typeAnnotation !== undefined)) {
               context.report({
                 node: decorator.node,
                 messageId: 'enumMismatch',

@@ -204,3 +204,23 @@ export function isPlainPrimitiveOf(type: ts.Type, allowed: readonly ts.Type[], c
     [...valueKinds].every((kind) => partKinds.has(kind))
   );
 }
+
+/**
+ * Whether an enum-validated `checked` type disagrees with the enum values `allowed`:
+ * the type declares values the enum does not contain, or — for an annotated type and an enum made
+ * only of literals — the enum allows values the type cannot hold.
+ */
+export function isEnumMismatch(
+  checked: ts.Type,
+  allowed: readonly ts.Type[],
+  checker: ts.TypeChecker,
+  annotated: boolean,
+): boolean {
+  const typeCovered = isCoveredBy(checked, allowed, checker) || isPlainPrimitiveOf(checked, allowed, checker);
+  // A non-`as const` object widens to `string`; a type inferred from a `readonly` default is not a contract.
+  const enumCovered =
+    !annotated ||
+    !allowed.every((a) => a.flags & ts.TypeFlags.Literal) ||
+    allowed.every((a) => nonNullish(checked).some((t) => isValueAssignable(a, t, checker)));
+  return !typeCovered || !enumCovered;
+}
