@@ -30,7 +30,8 @@ const isA = (x: A | B): x is A => 'flag' in x && x.kind === 'a';
 
 ## Notes
 
-- Optional properties count as declared; inherited members like `toString` are found.
+- Optional properties count as declared; inherited members like `toString` are found; numeric keys
+  (`'0' in arr`) are matched against numeric index signatures.
 - `notDiscriminating` is reported only for single-expression guards made solely of `'k' in x` checks,
   when every member of the parameter's union requires every checked key and the guard excludes at
   least one member.

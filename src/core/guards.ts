@@ -301,8 +301,12 @@ export function memberHasProperty(
     const optional = (property.flags & ts.SymbolFlags.Optional) !== 0 || mayBeAbsentField(property, options);
     return optional ? 'declared' : 'required';
   }
-  const keyType = checker.getStringLiteralType(key);
-  const indexed = checker.getIndexInfosOfType(member).some((info) => checker.isTypeAssignableTo(keyType, info.keyType));
+  // `'0' in arr` hits a numeric index signature: try the key as a number literal too.
+  const keyTypes: ts.Type[] = [checker.getStringLiteralType(key)];
+  if (key !== '' && String(Number(key)) === key) keyTypes.push(checker.getNumberLiteralType(Number(key)));
+  const indexed = checker
+    .getIndexInfosOfType(member)
+    .some((info) => keyTypes.some((keyType) => checker.isTypeAssignableTo(keyType, info.keyType)));
   return indexed ? 'index' : 'none';
 }
 

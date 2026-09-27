@@ -10,6 +10,13 @@ interface SquareOptions { side: number; rounded: boolean }
 
 ruleTester.run('guard-discriminant-matches-type', guardDiscriminantMatchesType, {
   valid: [
+    // branded primitives: the literal is a legitimate runtime value
+    `type Id = string & { readonly __brand: 'Id' };
+     type Cents = number & { readonly __brand: 'Cents' };
+     interface User { id: Id; name: string }
+     interface Price { amount: Cents }
+     const isAdmin = (x: unknown): x is User => (x as User).id === 'admin';
+     const isFree = (x: unknown): x is Price => (x as Price).amount === 0;`,
     // cast + optional chaining + enum discriminant
     `${SHAPES}
      const isCircle = (x: unknown): x is CircleShape => (x as { kind?: unknown })?.kind === Kind.Circle;`,
@@ -63,6 +70,16 @@ ruleTester.run('guard-discriminant-matches-type', guardDiscriminantMatchesType, 
      const circles = list.filter((s) => s.kind === Kind.Circle);`,
   ],
   invalid: [
+    // a branded primitive still rejects a literal of another kind / value
+    {
+      code: `type Cents = number & { readonly __brand: 'Cents' };
+type Tag = 'a' & { readonly __brand: 'Tag' };
+interface Price { amount: Cents }
+interface Tagged { kind: Tag }
+const isFree = (x: unknown): x is Price => (x as Price).amount === 'free';
+const isB = (x: unknown): x is Tagged => (x as Tagged).kind === 'b';`,
+      errors: [{ messageId: 'valueMismatch' }, { messageId: 'valueMismatch' }],
+    },
     // the wrong-target guard: promises the options type, which has no discriminant
     {
       code: `${SHAPES}

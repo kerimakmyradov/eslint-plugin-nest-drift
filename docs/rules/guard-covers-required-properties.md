@@ -37,6 +37,8 @@ through a `const` alias of `x`.
 
 - the value is handed to something else: passed to a function (validators, other guards, `Object.keys`),
   a method is called on it, `x instanceof C`, copied into a `let`, or destructured with a rest element;
+- keys come from a list (`REQUIRED.every((k) => k in x)`, `for (const k of KEYS)`, `x[k]`), or `x` is
+  compared by identity (`x === DEFAULT`);
 - the guard checks a discriminant (`x.kind === Kind.Circle`) — the conventional way to prove a union member;
 - the parameter is already a concrete type, the target is a union, a lib type (`Error`, `Date`), an array,
   or has more than `maxProperties` required properties.

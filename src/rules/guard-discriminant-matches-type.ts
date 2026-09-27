@@ -1,4 +1,5 @@
 import { ESLintUtils } from '@typescript-eslint/utils';
+import ts from 'typescript';
 import { createRule } from '../core/create-rule';
 import {
   conjuncts,
@@ -13,6 +14,21 @@ import { constituents, isCoveredBy, isUncheckable, nonNullish } from '../core/ty
 export const DEFAULT_IGNORED_PROPERTIES: readonly string[] = ['__typename', '__t', '_tag'];
 
 type Options = [{ ignoreProperties?: string[] }];
+
+const PRIMITIVE_LIKE =
+  ts.TypeFlags.StringLike | ts.TypeFlags.NumberLike | ts.TypeFlags.BigIntLike | ts.TypeFlags.BooleanLike;
+
+/**
+ * What a property can hold at runtime: union members, with branded primitives
+ * (`string & { __brand }`) reduced to their primitive part, which accepts plain literals.
+ */
+function runtimeParts(type: ts.Type): ts.Type[] {
+  return constituents(type).flatMap((member) => {
+    if (!member.isIntersection()) return [member];
+    const primitives = member.types.filter((part) => part.flags & PRIMITIVE_LIKE);
+    return primitives.length > 0 ? primitives : [member];
+  });
+}
 
 export const guardDiscriminantMatchesType = createRule<Options, 'missingProperty' | 'valueMismatch'>({
   name: 'guard-discriminant-matches-type',
@@ -69,7 +85,7 @@ export const guardDiscriminantMatchesType = createRule<Options, 'missingProperty
             checker.getTypeOfSymbol(checker.getPropertyOfType(m, comparison.key)!),
           );
           if (propertyTypes.some((t) => isUncheckable(t, checker))) continue;
-          const matchesSome = propertyTypes.some((t) => isCoveredBy(valueType, [...constituents(t)], checker));
+          const matchesSome = propertyTypes.some((t) => isCoveredBy(valueType, runtimeParts(t), checker));
           if (matchesSome) continue;
           context.report({
             node,

@@ -40,8 +40,9 @@ const isOpen = (x: unknown): x is Row => (x as Row).status === 'open'; // 'open'
 - `missingProperty`: no member of `T` has `k`.
 - `valueMismatch`: every member of `T` has `k`, and none of them accepts `V` (compared by runtime value).
 
-Silent when `T` is `any` / `unknown` / generic / `object` / `{}` / a primitive, when a member has an index
-signature, when a member of `T` lacks `k` (object types are open), and for `==`, `!==`, `undefined`, `null`.
+Silent when `T` is `any` / `unknown` / generic / `object` / `{}` / a primitive, when `k` is only admitted by
+an index signature, when the property is a branded primitive (`string & { __brand }`), when a member of
+`T` lacks `k` (object types are open), and for `==`, `!==`, `undefined`, `null`.
 
 ## Options
 

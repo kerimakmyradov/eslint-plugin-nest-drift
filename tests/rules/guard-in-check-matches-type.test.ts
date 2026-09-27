@@ -10,6 +10,10 @@ interface ConfigV2 { url: string; schemaVersion: 2 }
 
 ruleTester.run('guard-in-check-matches-type', guardInCheckMatchesType, {
   valid: [
+    // numeric keys are admitted by numeric index signatures
+    `const a = (x: unknown): x is string[] => Array.isArray(x) && '0' in x;
+     const b = (x: unknown): x is readonly number[] => Array.isArray(x) && '1' in x;
+     const c = (x: object): x is Uint8Array => '0' in x;`,
     `${DOCS}
      const isArchived = (d: Draft | Archived): d is Archived => 'archivedAt' in d;
      const isV1 = (c: ConfigV1 | ConfigV2): c is ConfigV1 => !('schemaVersion' in c);`,

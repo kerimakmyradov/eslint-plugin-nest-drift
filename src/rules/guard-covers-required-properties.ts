@@ -57,7 +57,39 @@ function hasOwnCall(call: TSESTree.CallExpression, guard: TypeGuard): string | u
 function inspect(guard: TypeGuard): { touched: Set<string>; delegates: boolean } {
   const touched = new Set<string>();
   let delegates = guard.escapes;
+  const visited = new Set<TSESTree.Node>();
   walkOwnBody(guard.fn.body, (node) => {
+    visited.add(node);
+    // Keys that are not literals (`k in x`, `x[k]`) come from a dynamic list: cannot be counted.
+    if (
+      node.type === AST_NODE_TYPES.BinaryExpression &&
+      node.operator === 'in' &&
+      isParamRef(node.right, guard) &&
+      !(node.left.type === AST_NODE_TYPES.Literal && typeof node.left.value === 'string')
+    ) {
+      delegates = true;
+    }
+    if (
+      node.type === AST_NODE_TYPES.MemberExpression &&
+      node.computed &&
+      isParamRef(node.object, guard) &&
+      !(node.property.type === AST_NODE_TYPES.Literal && typeof node.property.value === 'string')
+    ) {
+      delegates = true;
+    }
+    // Identity with another value (`x === EMPTY`) proves the shape by reference.
+    if (
+      node.type === AST_NODE_TYPES.BinaryExpression &&
+      (node.operator === '===' || node.operator === '!==' || node.operator === '==' || node.operator === '!=')
+    ) {
+      const [a, b] = [node.left, node.right];
+      const other = isParamRef(a, guard) ? b : isParamRef(b, guard) ? a : undefined;
+      const isNullish =
+        other !== undefined &&
+        ((other.type === AST_NODE_TYPES.Literal && other.value === null) ||
+          (other.type === AST_NODE_TYPES.Identifier && other.name === 'undefined'));
+      if (other !== undefined && !isNullish) delegates = true;
+    }
     const access = readParamAccess(node, guard);
     if (access !== undefined) touched.add(access);
     const inCheck = readInCheck(node, guard);
@@ -105,6 +137,12 @@ function inspect(guard: TypeGuard): { touched: Set<string>; delegates: boolean }
       staticName(callee.property) === 'isArray';
     if (!isArrayIsArray && node.arguments.some((argument) => isParamRef(argument, guard))) delegates = true;
   });
+  // A reference used inside a nested function (e.g. `keys.every((k) => k in x)`) is a dynamic check.
+  const [bodyStart, bodyEnd] = guard.fn.body.range;
+  for (const ref of guard.refs) {
+    const inBody = ref.range[0] >= bodyStart && ref.range[1] <= bodyEnd;
+    if (inBody && !visited.has(ref)) delegates = true;
+  }
   return { touched, delegates };
 }
 

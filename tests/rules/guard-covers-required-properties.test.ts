@@ -5,6 +5,18 @@ const ORDER = `interface Order { id: string; total: number; note?: string }`;
 
 ruleTester.run('guard-covers-required-properties', guardCoversRequiredProperties, {
   valid: [
+    // dynamic checks over a list of keys, and identity checks, cannot be counted
+    `interface Order { id: string; total: number }
+     const REQUIRED = ['id', 'total'] as const;
+     declare const EMPTY: Order;
+     const a = (x: unknown): x is Order => typeof x === 'object' && x !== null && ['id', 'total'].every((k) => k in x);
+     function b(x: unknown): x is Order {
+       if (typeof x !== 'object' || x === null) return false;
+       for (const k of REQUIRED) if (!(k in x)) return false;
+       return true;
+     }
+     const c = (x: Record<string, unknown>): x is Order => REQUIRED.every((k) => x[k] !== undefined);
+     const d = (x: unknown): x is Order => x === EMPTY;`,
     // every required property is checked; optional ones may be skipped
     `${ORDER}
      const isOrder = (x: unknown): x is Order =>
