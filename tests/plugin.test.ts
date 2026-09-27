@@ -3,6 +3,7 @@ import plugin from '../src/index';
 
 const ALL_RULES = [
   'api-property-matches-type',
+  'column-matches-type',
   'each-matches-array',
   'enum-matches-type',
   'guard-covers-required-properties',

@@ -1,4 +1,5 @@
 import { apiPropertyMatchesType } from './api-property-matches-type';
+import { columnMatchesType } from './column-matches-type';
 import { eachMatchesArray } from './each-matches-array';
 import { enumMatchesType } from './enum-matches-type';
 import { guardCoversRequiredProperties } from './guard-covers-required-properties';
@@ -18,4 +19,5 @@ export const rules = {
   'guard-discriminant-matches-type': guardDiscriminantMatchesType,
   'guard-in-check-matches-type': guardInCheckMatchesType,
   'guard-covers-required-properties': guardCoversRequiredProperties,
+  'column-matches-type': columnMatchesType,
 };
