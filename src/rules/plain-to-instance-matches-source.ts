@@ -21,6 +21,13 @@ const SUPPORTED_OPTIONS: ReadonlySet<string> = new Set([
 /** `@Expose()` options that rename the key or hide it from `plainToInstance`. */
 const EXPOSE_SKIP_OPTIONS: ReadonlySet<string> = new Set(['name', 'groups', 'since', 'until', 'toPlainOnly']);
 const PRIMITIVE_KINDS: ReadonlySet<Kind> = new Set(['string', 'number', 'boolean', 'bigint']);
+/** Decorator sources known not to change what `plainToInstance()` copies (besides class-transformer's own). */
+const TRANSPARENT_MODULES: ReadonlySet<string> = new Set(['class-transformer', 'class-validator', '@nestjs/swagger']);
+
+/** Own decorators (`ToNumber()` wrapping `Transform`) and other libraries may apply class-transformer metadata. */
+function isOpaque(decorator: { module: string | undefined }): boolean {
+  return decorator.module === undefined || !TRANSPARENT_MODULES.has(decorator.module);
+}
 
 interface Call {
   node: TSESTree.CallExpression;
@@ -99,7 +106,8 @@ export const plainToInstanceMatchesSource = createRule<Options, MessageIds>({
     const calls: Call[] = [];
     /** Property names written after a call: `dto.amount = …`, `{ ...dto, amount }`. */
     const writes: { name: string; node: TSESTree.Node }[] = [];
-    const objectAssigns: TSESTree.Node[] = [];
+    /** `Object.assign(…)` calls and `x[key] = …` writes. */
+    const dynamicPatches: TSESTree.Node[] = [];
 
     function isPlainToInstance(callee: TSESTree.Node): boolean {
       if (callee.type !== AST_NODE_TYPES.Identifier && callee.type !== AST_NODE_TYPES.MemberExpression) return false;
@@ -177,14 +185,16 @@ export const plainToInstanceMatchesSource = createRule<Options, MessageIds>({
       const sources = sourceObjects(services.getTypeAtLocation(sourceArg));
       if (!sources) return;
 
-      // A result handed to Object.assign may be patched in ways we cannot follow.
-      if (objectAssigns.some((a) => a.range[0] > node.range[1] && within(a, scope))) return;
+      // A result handed to Object.assign or written with dynamic keys may be patched in ways we cannot follow.
+      if (dynamicPatches.some((a) => a.range[0] > node.range[1] && within(a, scope))) return;
       const patched = new Set(
         writes.filter((w) => w.node.range[0] > node.range[1] && within(w.node, scope)).map((w) => w.name),
       );
 
       // Class-level strategy is read from the DTO class itself only (not inherited).
-      const classDecorators = getTsDecorators(dtoDeclaration, checker).filter((d) => d.module === 'class-transformer');
+      const ownDecorators = getTsDecorators(dtoDeclaration, checker);
+      if (ownDecorators.some(isOpaque)) return;
+      const classDecorators = ownDecorators.filter((d) => d.module === 'class-transformer');
       const classExclude = classDecorators.some((d) => d.name === 'Exclude');
       const classExpose = classDecorators.some((d) => d.name === 'Expose');
       const exposeMode =
@@ -205,9 +215,9 @@ export const plainToInstanceMatchesSource = createRule<Options, MessageIds>({
         const flags = ts.getCombinedModifierFlags(nearest);
         if (flags & (ts.ModifierFlags.Private | ts.ModifierFlags.Protected | ts.ModifierFlags.Static)) continue;
 
-        const decorators = members
-          .flatMap((m) => getTsDecorators(m, checker))
-          .filter((d) => d.module === 'class-transformer');
+        const allDecorators = members.flatMap((m) => getTsDecorators(m, checker));
+        if (allDecorators.some(isOpaque)) continue;
+        const decorators = allDecorators.filter((d) => d.module === 'class-transformer');
         if (decorators.some((d) => d.name === 'Exclude' || d.name === 'Transform' || d.name === 'Type')) continue;
         const exposes = decorators.filter((d) => d.name === 'Expose');
         if (
@@ -276,13 +286,14 @@ export const plainToInstanceMatchesSource = createRule<Options, MessageIds>({
           callee.object.name === 'Object' &&
           staticKey(callee.property, callee.computed) === 'assign'
         ) {
-          objectAssigns.push(node);
+          dynamicPatches.push(node);
         }
       },
       AssignmentExpression(node) {
         if (node.left.type !== AST_NODE_TYPES.MemberExpression) return;
         const name = staticKey(node.left.property, node.left.computed);
         if (name !== undefined) writes.push({ name, node });
+        else dynamicPatches.push(node);
       },
       ObjectExpression(node) {
         if (!node.properties.some((p) => p.type === AST_NODE_TYPES.SpreadElement)) return;

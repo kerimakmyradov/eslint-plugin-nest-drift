@@ -76,8 +76,11 @@ pattern is "map the entity, then fill computed fields elsewhere" (e.g. in the co
   compiled `.d.ts`, and calls with options that change which keys are copied (`groups`, `version`,
   `exposeDefaultValues`, …) or with `enableImplicitConversion` (for kinds) are skipped: the rule
   cannot see what gets copied.
+- Decorators the rule cannot see through — your own (`ToNumber()` wrapping `@Transform()`) or from
+  libraries other than class-transformer, class-validator and `@nestjs/swagger` — skip the property
+  (on a property) or the call (on the DTO class).
 - Properties written after the call in the same function (`dto.amount = …`, including inside a
-  `forEach`, or `{ ...dto, amount }`) are skipped; a result passed to `Object.assign` skips the call.
+  `forEach`, or `{ ...dto, amount }`) are skipped; a result passed to `Object.assign` or written with a dynamic key (`dto[key] = …`) skips the call.
 
 ## When not to use it
 

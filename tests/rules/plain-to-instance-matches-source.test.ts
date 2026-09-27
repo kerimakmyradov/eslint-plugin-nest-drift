@@ -93,6 +93,28 @@ ruleTester.run('plain-to-instance-matches-source', plainToInstanceMatchesSource,
        const dto = plainToInstance(Dto, e);
        return Object.assign(dto, { amount: 1, accountId: '1' });
      }`,
+    // decorators the rule cannot see through: own wrappers of Transform / Exclude, other libraries
+    `import { Exclude, Expose, plainToInstance, Transform } from 'class-transformer';
+     import { IsString } from 'class-validator';
+     ${ENTITY}
+     const ToNumber = () => Transform(({ value }) => Number(value));
+     const ResponseDto = (): ClassDecorator => (target) => { Exclude()(target); };
+     class Dto { @ToNumber() amount!: number; }
+     @ResponseDto() class Hidden { @Expose() id!: string; amount!: number; }
+     class Validated { @IsString() id!: string; @ToNumber() @IsString() accountId!: string; }
+     declare const e: PaymentEntity;
+     plainToInstance(Dto, e);
+     plainToInstance(Hidden, e);
+     plainToInstance(Validated, e);`,
+    // dynamic writes after the call
+    `import { plainToInstance } from 'class-transformer';
+     ${ENTITY}
+     class Dto { amount!: number; }
+     function patch(e: PaymentEntity, keys: string[]) {
+       const dto = plainToInstance(Dto, e);
+       for (const k of keys) (dto as any)[k] = Number((e as any)[k]);
+       return dto;
+     }`,
     // missingInSource is opt-in
     `import { Exclude, Expose, plainToInstance } from 'class-transformer';
      ${ENTITY}
