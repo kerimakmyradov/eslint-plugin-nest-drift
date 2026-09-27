@@ -45,3 +45,9 @@ class FilterDto {
 - Branded arrays (`string[] & { __brand: 'Tags' }`) are arrays; a user class named `Map` or `Set` is not.
 - A shared options object (`@IsString(EACH)`) is read through the type checker; if its `each` is not a
   literal `true`/`false`, the decorator is skipped.
+
+## When not to use it
+
+- A custom `ValidationPipe` or transformer splits scalar query params into arrays after validation
+  (e.g. `?tags=a,b` validated as a string and split later). Prefer typing the property as it is at
+  validation time; otherwise disable the rule for that property.

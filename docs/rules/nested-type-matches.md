@@ -38,3 +38,8 @@ class OrderDto {
 - A subclass is accepted for a base-class or interface property.
 - `@Type` with a second argument (`discriminator`, `keepDiscriminatorProperty`) is skipped.
 - Generic classes and thunks that are not a plain class reference are skipped.
+
+## When not to use it
+
+- Polymorphic payloads resolved by a custom `@Transform()` instead of `@Type(..., { discriminator })`:
+  the class in `@Type` is then only a placeholder. Disable the rule on that property with a comment.
