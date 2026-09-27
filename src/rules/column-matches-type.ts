@@ -2,8 +2,18 @@ import { AST_NODE_TYPES, ESLintUtils } from '@typescript-eslint/utils';
 import type { ParserServicesWithTypeInformation, TSESTree } from '@typescript-eslint/utils';
 import ts from 'typescript';
 import { createRule } from '../core/create-rule';
-import { getDecorators, propertyName } from '../core/decorators';
-import { collectionElementType, isArrayLike, isUncheckable, kindsOf, nonNullish, type Kind } from '../core/type-compare';
+import { getDecorators, propertyName, resolveSymbol } from '../core/decorators';
+import {
+  collectionElementType,
+  enumValueTypes,
+  hasNull,
+  isArrayLike,
+  isEnumMismatch,
+  isUncheckable,
+  kindsOf,
+  nonNullish,
+  type Kind,
+} from '../core/type-compare';
 import { COLUMN_DECORATORS, columnInfo, type ColumnInfo, type ColumnKind } from '../core/typeorm';
 
 const TYPEORM = ['typeorm'] as const;
@@ -67,7 +77,7 @@ function collectJoinColumns(body: TSESTree.ClassBody, services: ParserServicesWi
   return result;
 }
 
-export const columnMatchesType = createRule<Options, 'columnKindMismatch'>({
+export const columnMatchesType = createRule<Options, 'columnKindMismatch' | 'columnEnumMismatch' | 'nullableWithoutNull' | 'nullOnNotNullColumn'>({
   name: 'column-matches-type',
   meta: {
     type: 'problem',
@@ -78,6 +88,9 @@ export const columnMatchesType = createRule<Options, 'columnKindMismatch'>({
     },
     messages: {
       columnKindMismatch: '`{{column}}` columns are read as {{expected}}, but `{{property}}` is typed as `{{actual}}`.',
+      columnEnumMismatch: 'The `{{column}}` column stores `{{enumName}}`, but `{{property}}` is typed as `{{actual}}`.',
+      nullableWithoutNull: '`{{property}}` is a nullable column, but its type `{{actual}}` does not include `null`.',
+      nullOnNotNullColumn: '`{{property}}` is typed as `{{actual}}`, but the column is not nullable.',
     },
     schema: [
       {
@@ -96,6 +109,9 @@ export const columnMatchesType = createRule<Options, 'columnKindMismatch'>({
   create(context, [options]) {
     const services = ESLintUtils.getParserServices(context);
     const checker = services.program.getTypeChecker();
+    // Without strictNullChecks TypeScript erases `| null`, so nullability cannot be compared.
+    const compilerOptions = services.program.getCompilerOptions();
+    const strictNullChecks = compilerOptions.strictNullChecks ?? compilerOptions.strict ?? false;
     const joinColumnsCache = new WeakMap<TSESTree.ClassBody, JoinColumns | undefined>();
 
     function joinColumns(body: TSESTree.ClassBody): JoinColumns | undefined {
@@ -127,11 +143,26 @@ export const columnMatchesType = createRule<Options, 'columnKindMismatch'>({
       return names.some((name) => joins.names.has(name) || joins.prefixes.some((prefix) => name.startsWith(prefix)));
     }
 
-    function checkKind(node: TSESTree.PropertyDefinition, column: ColumnInfo, type: ts.Type): void {
+    /** Allowed values of `enum: E` / `enum: ['a', 'b']`; undefined when they cannot be read. */
+    function enumValues(node: TSESTree.Node): ts.Type[] | undefined {
+      if (node.type === AST_NODE_TYPES.ArrayExpression) {
+        const values: ts.Type[] = [];
+        for (const element of node.elements) {
+          if (element?.type !== AST_NODE_TYPES.Literal) return undefined;
+          values.push(services.getTypeAtLocation(element));
+        }
+        return values.length > 0 ? values : undefined;
+      }
+      const symbol = resolveSymbol(node, services);
+      return symbol && enumValueTypes(symbol, checker);
+    }
+
+    function checkType(node: TSESTree.PropertyDefinition, column: ColumnInfo, type: ts.Type): void {
+      if (column.array === 'unknown' || !column.typeName) return;
       const array = column.array === 'true';
-      if (column.array === 'unknown') return;
-      const expected = runtimeKind(array ? column.arrayKind : column.kind);
-      if (!expected || !column.typeName) return;
+      const columnKind = array ? column.arrayKind : column.kind;
+      const expected = runtimeKind(columnKind);
+      if (!expected && !(columnKind === 'enum' && column.enumNode)) return;
       const label = array ? `${column.typeName}[]` : column.typeName;
       const data = { column: label, property: propertyName(node), actual: checker.typeToString(type) };
       let checked = type;
@@ -146,13 +177,40 @@ export const columnMatchesType = createRule<Options, 'columnKindMismatch'>({
         if (!element) return;
         checked = element;
       }
+      if (isUncheckable(checked, checker) || nonNullish(checked).length === 0) return;
+
+      if (!expected) {
+        const allowed = enumValues(column.enumNode!);
+        if (allowed && isEnumMismatch(checked, allowed, checker, node.typeAnnotation !== undefined)) {
+          context.report({
+            node: column.decorator.node,
+            messageId: 'columnEnumMismatch',
+            data: { ...data, enumName: context.sourceCode.getText(column.enumNode!) },
+          });
+        }
+        return;
+      }
       const kinds: Kind[] = kindsOf(checked, checker).filter((k) => k !== 'null' && k !== 'undefined');
-      if (kinds.length === 0 || kinds.includes('unknown') || kinds.includes(expected)) return;
+      if (kinds.includes(expected)) return;
       context.report({
         node: column.decorator.node,
         messageId: 'columnKindMismatch',
         data: { ...data, expected: array ? `arrays of ${KIND_TEXT[expected]}` : KIND_TEXT[expected]! },
       });
+    }
+
+    function checkNullability(node: TSESTree.PropertyDefinition, column: ColumnInfo, type: ts.Type): void {
+      const data = { property: propertyName(node), actual: checker.typeToString(type) };
+      const typeHasNull = hasNull(type);
+      if (column.nullable === 'true' && !typeHasNull) {
+        context.report({ node: column.decorator.node, messageId: 'nullableWithoutNull', data });
+      } else if (
+        options.reportNullOnNotNull &&
+        typeHasNull &&
+        (column.nullable === 'false' || column.nullable === 'absent')
+      ) {
+        context.report({ node: column.decorator.node, messageId: 'nullOnNotNullColumn', data });
+      }
     }
 
     return {
@@ -162,7 +220,8 @@ export const columnMatchesType = createRule<Options, 'columnKindMismatch'>({
         if (!column) return;
         const type = services.getTypeAtLocation(node);
         if (isUncheckable(type, checker)) return;
-        if (!isRetypedByRelation(node, column)) checkKind(node, column, type);
+        if (!isRetypedByRelation(node, column)) checkType(node, column, type);
+        if (strictNullChecks) checkNullability(node, column, type);
       },
     };
   },

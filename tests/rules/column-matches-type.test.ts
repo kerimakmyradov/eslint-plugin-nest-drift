@@ -1,5 +1,5 @@
 import { columnMatchesType } from '../../src/rules/column-matches-type';
-import { ruleTester } from '../rule-tester';
+import { looseRuleTester, ruleTester } from '../rule-tester';
 
 const kind = (column: string, expected: string, property: string, actual: string) => ({
   messageId: 'columnKindMismatch' as const,
@@ -92,6 +92,40 @@ ruleTester.run('column-matches-type', columnMatchesType, {
     // user decorators with TypeORM names are ignored
     `function Column(_type?: string): PropertyDecorator { return () => undefined; }
      class E { @Column('decimal') a!: number; }`,
+    // enum columns
+    `import { Column } from 'typeorm';
+     enum Status { Open = 'open', Closed = 'closed' }
+     enum Level { Low, High }
+     class E {
+       @Column({ type: 'enum', enum: Status }) a!: Status;
+       @Column({ type: 'enum', enum: Status }) b!: \`\${Status}\`;
+       @Column({ type: 'simple-enum', enum: Level }) c!: Level;
+       @Column({ type: 'enum', enum: Status }) d!: string;
+       @Column({ type: 'enum', enum: ['a', 'b'] }) e!: 'a' | 'b';
+       @Column({ type: 'enum', enum: Status, array: true }) f!: Status[];
+       @Column({ type: 'enum', enum: Status, nullable: true }) g!: Status | null;
+       @Column({ type: 'enum', enum: STATUSES }) h!: 'x';
+       @Column({ type: 'enum' }) i!: number;
+     }
+     declare const STATUSES: string[];`,
+    // nullability
+    `import { Column, DeleteDateColumn } from 'typeorm';
+     declare const flag: boolean;
+     class E {
+       @Column('text', { nullable: true }) a!: string | null;
+       @Column({ nullable: true }) b!: string | null;
+       @Column('jsonb', { nullable: true }) c!: object | null;
+       @DeleteDateColumn() d!: Date | null;
+       @DeleteDateColumn({ nullable: false }) e!: Date;
+       @Column('text', { nullable: flag }) f!: string;
+       @Column('text') g!: string | null;
+       @Column('text', { nullable: false }) h!: string | null;
+     }`,
+    {
+      code: `import { Column } from 'typeorm';
+             class E { @Column('text', { nullable: true }) a!: string | null; @Column('text') b!: string; }`,
+      options: [{ reportNullOnNotNull: true }],
+    },
     // option: decimal parsed as number, timestamps read as strings (mysql2 dateStrings)
     {
       code: `import { Column, CreateDateColumn } from 'typeorm';
@@ -166,6 +200,67 @@ ruleTester.run('column-matches-type', columnMatchesType, {
              import { Column as Col } from 'typeorm';
              class E { @orm.Column('int') a!: string; @Col('int') b!: string; }`,
       errors: [kind('int', 'numbers', 'a', 'string'), kind('int', 'numbers', 'b', 'string')],
+    },
+    {
+      code: `import { Column } from 'typeorm';
+             enum Status { Open = 'open', Closed = 'closed' }
+             enum Currency { Usd = 'usd' }
+             class E {
+               @Column({ type: 'enum', enum: Status }) a!: Currency;
+               @Column({ type: 'enum', enum: Status }) b!: Status.Open;
+               @Column('enum', { enum: ['a', 'b', 'c'] }) c!: 'a' | 'b';
+               @Column({ type: 'enum', enum: Status, array: true }) d!: Currency[];
+               @Column({ type: 'enum', enum: Status }) e!: number;
+             }`,
+      errors: [
+        { messageId: 'columnEnumMismatch', data: { column: 'enum', enumName: 'Status', property: 'a', actual: 'Currency' } },
+        { messageId: 'columnEnumMismatch', data: { column: 'enum', enumName: 'Status', property: 'b', actual: 'Status.Open' } },
+        { messageId: 'columnEnumMismatch', data: { column: 'enum', enumName: "['a', 'b', 'c']", property: 'c', actual: '"a" | "b"' } },
+        { messageId: 'columnEnumMismatch', data: { column: 'enum[]', enumName: 'Status', property: 'd', actual: 'Currency[]' } },
+        { messageId: 'columnEnumMismatch', data: { column: 'enum', enumName: 'Status', property: 'e', actual: 'number' } },
+      ],
+    },
+    {
+      code: `import { Column, DeleteDateColumn } from 'typeorm';
+             class E {
+               @Column('text', { nullable: true }) a!: string;
+               @Column({ nullable: true }) b?: string;
+               @DeleteDateColumn() deletedAt!: Date;
+             }`,
+      errors: [
+        { messageId: 'nullableWithoutNull', data: { property: 'a', actual: 'string' } },
+        { messageId: 'nullableWithoutNull', data: { property: 'b', actual: 'string | undefined' } },
+        { messageId: 'nullableWithoutNull', data: { property: 'deletedAt', actual: 'Date' } },
+      ],
+    },
+    {
+      code: `import { Column } from 'typeorm';
+             class E { @Column('text') a!: string | null; @Column('text', { nullable: false }) b!: string | null; }`,
+      options: [{ reportNullOnNotNull: true }],
+      errors: [
+        { messageId: 'nullOnNotNullColumn', data: { property: 'a', actual: 'string | null' } },
+        { messageId: 'nullOnNotNullColumn', data: { property: 'b', actual: 'string | null' } },
+      ],
+    },
+  ],
+});
+
+// Without strictNullChecks `| null` is erased: nullability is not compared, kinds still are.
+looseRuleTester.run('column-matches-type (strictNullChecks off)', columnMatchesType, {
+  valid: [
+    `import { Column } from 'typeorm';
+     class E { @Column('text', { nullable: true }) a: string; @Column('text') b: string | null; }`,
+    {
+      code: `import { Column } from 'typeorm';
+             class E { @Column('text') a: string | null; }`,
+      options: [{ reportNullOnNotNull: true }],
+    },
+  ],
+  invalid: [
+    {
+      code: `import { Column } from 'typeorm';
+             class E { @Column('decimal', { nullable: true }) a: number | null; }`,
+      errors: [kind('decimal', 'strings', 'a', 'number')],
     },
   ],
 });
