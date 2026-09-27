@@ -24,3 +24,13 @@ export const looseRuleTester = new RuleTester({
     },
   },
 });
+
+/** Target below ES2022: class fields use assignment semantics (`useDefineForClassFields` off). */
+export const es2021RuleTester = new RuleTester({
+  languageOptions: {
+    parserOptions: {
+      project: './tsconfig.json',
+      tsconfigRootDir: `${import.meta.dirname}/fixtures/es2021`,
+    },
+  },
+});
