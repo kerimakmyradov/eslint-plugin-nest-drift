@@ -1,0 +1,26 @@
+name: Missed drift
+description: A decorator disagrees with the type, but no rule reports it
+labels: [false-negative, needs-triage]
+body:
+  - type: textarea
+    id: code
+    attributes:
+      label: Minimal code
+      description: A self-contained DTO where the decorator and the type disagree.
+      render: ts
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should be reported
+      description: Which rule, on which line, and what goes wrong at runtime because of this drift.
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: eslint-plugin-nest-drift, ESLint, TypeScript, class-validator, @nestjs/swagger
+    validations:
+      required: true
