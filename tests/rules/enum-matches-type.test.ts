@@ -3,6 +3,14 @@ import { ruleTester } from '../rule-tester';
 
 ruleTester.run('enum-matches-type', enumMatchesType, {
   valid: [
+    // review: missing each on an array is each-matches-array's report, not ours
+    `import { IsEnum, IsIn } from 'class-validator';
+     enum Status { Open = 'open' }
+     class Dto { @IsEnum(Status) statuses!: Status[]; @IsIn(['a', 'b']) modes!: ('a' | 'b')[]; }`,
+    // review: an inferred readonly default narrows the type; that is not a declared contract
+    `import { IsEnum, IsOptional } from 'class-validator';
+     enum SortOrder { Asc = 'asc', Desc = 'desc' }
+     class Query { @IsOptional() @IsEnum(SortOrder) readonly order = SortOrder.Asc; }`,
     `import { IsEnum } from 'class-validator';
      enum Status { Open = 'open', Closed = 'closed' }
      enum Level { Low, High }

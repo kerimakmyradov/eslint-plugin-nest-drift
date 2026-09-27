@@ -1,8 +1,24 @@
 import { nullableMatchesType } from '../../src/rules/nullable-matches-type';
-import { ruleTester } from '../rule-tester';
+import { looseRuleTester, ruleTester } from '../rule-tester';
 
 ruleTester.run('nullable-matches-type', nullableMatchesType, {
   valid: [
+    // review: validators that accept null
+    `import { Allow, IsEmpty, IsIn, Equals } from 'class-validator';
+     class Dto {
+       @Allow() a!: string | null;
+       @IsEmpty() b!: string | null;
+       @IsIn(['x', null]) c!: 'x' | null;
+       @Equals(null) d!: null;
+     }`,
+    // review: non-literal / spread options cannot be judged
+    `import { ApiProperty } from '@nestjs/swagger';
+     const NULLABLE = { nullable: true } as const;
+     const OPTS = { type: String, nullable: true };
+     class Dto {
+       @ApiProperty({ ...NULLABLE, type: String }) note!: string | null;
+       @ApiProperty(OPTS) deletedAt!: Date | null;
+     }`,
     `import { IsString, IsOptional, ValidateIf } from 'class-validator';
      import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
      class Dto {
@@ -62,4 +78,20 @@ ruleTester.run('nullable-matches-type', nullableMatchesType, {
       errors: [{ messageId: 'swaggerMissingNullable' }, { messageId: 'nullRejected' }],
     },
   ],
+});
+
+// review: with strictNullChecks off TypeScript erases \`| null\`, so the rule cannot judge anything.
+looseRuleTester.run('nullable-matches-type (strictNullChecks off)', nullableMatchesType, {
+  valid: [
+    `import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+     import { IsOptional, IsString, IsEnum } from 'class-validator';
+     enum S { A = 'a' }
+     class Dto {
+       @ApiProperty({ nullable: true }) @IsOptional() @IsString() note: string | null;
+       @ApiPropertyOptional({ nullable: true, enum: S }) @IsOptional() @IsEnum(S) s?: S | null;
+       @ApiProperty({ type: String, nullable: true }) deletedAt: string | null;
+       @IsString() plain: string | null;
+     }`,
+  ],
+  invalid: [],
 });

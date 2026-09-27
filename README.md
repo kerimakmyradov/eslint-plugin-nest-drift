@@ -32,6 +32,7 @@ import nestDrift from 'eslint-plugin-nest-drift';
 export default [
   ...tseslint.configs.recommended,
   {
+    files: ['**/*.ts'],
     languageOptions: {
       parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
     },

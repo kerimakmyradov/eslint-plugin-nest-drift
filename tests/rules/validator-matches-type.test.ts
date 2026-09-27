@@ -3,6 +3,9 @@ import { ruleTester } from '../rule-tester';
 
 ruleTester.run('validator-matches-type', validatorMatchesType, {
   valid: [
+    // review: branded arrays are arrays
+    `import { IsArray } from 'class-validator';
+     class Dto { @IsArray() tags!: string[] & { readonly __brand: 'Tags' }; }`,
     // plain matches
     `import { IsString, IsInt, IsBoolean, IsDate } from 'class-validator';
      class Dto {

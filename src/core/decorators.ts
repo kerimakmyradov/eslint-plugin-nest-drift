@@ -83,6 +83,53 @@ export function getKnownDecorators(
   return result;
 }
 
+export type OptionState = 'true' | 'false' | 'absent' | 'unknown';
+
+/**
+ * Value of a boolean option (`each`, `nullable`, `isArray`) in the decorator's last argument.
+ * Object literals are read from the AST; shared objects and spreads are read through the checker,
+ * and anything that cannot be decided is `unknown` so absence-based checks can stay silent.
+ */
+export function readBooleanOption(
+  decorator: DecoratorInfo,
+  key: string,
+  services: ParserServicesWithTypeInformation,
+): OptionState {
+  const last = decorator.args.at(-1);
+  if (!last) return 'absent';
+  if (last.type === AST_NODE_TYPES.ObjectExpression) {
+    let state: OptionState = 'absent';
+    for (const prop of last.properties) {
+      if (prop.type === AST_NODE_TYPES.SpreadElement || prop.computed) {
+        state = 'unknown'; // a later explicit key still wins below
+        continue;
+      }
+      const name =
+        prop.key.type === AST_NODE_TYPES.Identifier
+          ? prop.key.name
+          : prop.key.type === AST_NODE_TYPES.Literal
+            ? String(prop.key.value)
+            : undefined;
+      if (name !== key) continue;
+      state =
+        prop.value.type === AST_NODE_TYPES.Literal && typeof prop.value.value === 'boolean'
+          ? prop.value.value
+            ? 'true'
+            : 'false'
+          : 'unknown';
+    }
+    return state;
+  }
+  if (last.type === AST_NODE_TYPES.SpreadElement) return 'unknown';
+  const checker = services.program.getTypeChecker();
+  const type = services.getTypeAtLocation(last);
+  if (type.flags & (ts.TypeFlags.Any | ts.TypeFlags.Unknown)) return 'unknown';
+  const property = type.getProperty(key);
+  if (!property) return 'absent';
+  const text = checker.typeToString(checker.getTypeOfSymbol(property));
+  return text === 'true' ? 'true' : text === 'false' ? 'false' : 'unknown';
+}
+
 export function isTrueLiteral(node: TSESTree.Node | undefined): boolean {
   return node?.type === AST_NODE_TYPES.Literal && node.value === true;
 }

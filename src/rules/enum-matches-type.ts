@@ -1,10 +1,11 @@
 import { AST_NODE_TYPES, ESLintUtils } from '@typescript-eslint/utils';
 import ts from 'typescript';
 import { createRule } from '../core/create-rule';
-import { getKnownDecorators, isTrueLiteral, propertyName, resolveSymbol } from '../core/decorators';
+import { getKnownDecorators, propertyName, readBooleanOption, resolveSymbol } from '../core/decorators';
 import {
   collectionElementType,
   enumValueTypes,
+  isCollection,
   isCoveredBy,
   isUncheckable,
   isValueAssignable,
@@ -40,9 +41,11 @@ export const enumMatchesType = createRule({
         if (isUncheckable(propertyType, checker)) return;
 
         for (const decorator of decorators) {
-          const checked = isTrueLiteral(decorator.options.get('each'))
-            ? collectionElementType(propertyType, checker)
-            : propertyType;
+          const each = readBooleanOption(decorator, 'each', services);
+          if (each === 'unknown') continue;
+          // An array validated without `each` is each-matches-array's report (one report per mistake).
+          if (each !== 'true' && isCollection(propertyType, checker)) continue;
+          const checked = each === 'true' ? collectionElementType(propertyType, checker) : propertyType;
           if (!checked || isUncheckable(checked, checker) || nonNullish(checked).length === 0) continue;
           const data = { property: propertyName(node), actual: checker.typeToString(checked) };
           const [first] = decorator.args;
@@ -56,7 +59,9 @@ export const enumMatchesType = createRule({
             const typeCovered = isCoveredBy(checked, allowed, checker);
             // …and the enum must not allow values the property type cannot hold.
             // Only meaningful when every enum value is a literal (a non-`as const` object widens to `string`).
+            // A type inferred from a `readonly` default (`order = SortOrder.Asc`) is not a declared contract.
             const enumCovered =
+              !node.typeAnnotation ||
               !allowed.every((a) => a.flags & ts.TypeFlags.Literal) ||
               allowed.every((a) => nonNullish(checked).some((t) => isValueAssignable(a, t, checker)));
             if (!typeCovered || !enumCovered) {

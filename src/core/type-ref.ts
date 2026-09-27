@@ -2,7 +2,7 @@ import { AST_NODE_TYPES } from '@typescript-eslint/utils';
 import type { ParserServicesWithTypeInformation, TSESTree } from '@typescript-eslint/utils';
 import ts from 'typescript';
 import { resolveSymbol, unwrapThunk } from './decorators';
-import { isUncheckable, kindsOf, nonNullish, type Kind } from './type-compare';
+import { constituents, isUncheckable, jsonKindOf, kindOf, nonNullish, type Kind } from './type-compare';
 
 /** What a runtime type reference such as `() => Foo`, `Number` or `'string'` stands for. */
 export type TypeRef =
@@ -57,11 +57,21 @@ export function resolveTypeRef(
   return { instance, label: symbol.getName() };
 }
 
-/** Whether a value described by `ref` fits `type` (nullish constituents of `type` are ignored). */
-export function matchesTypeRef(ref: TypeRef, type: ts.Type, checker: ts.TypeChecker): boolean {
+/**
+ * Whether a value described by `ref` fits `type` (nullish constituents of `type` are ignored).
+ * With `json: true` the type is compared as it looks after `JSON.stringify` (see `jsonKindOf`).
+ */
+export function matchesTypeRef(
+  ref: TypeRef,
+  type: ts.Type,
+  checker: ts.TypeChecker,
+  options: { json?: boolean } = {},
+): boolean {
   if (isUncheckable(type, checker) || nonNullish(type).length === 0) return true;
   if ('instance' in ref) return checker.isTypeAssignableTo(ref.instance, type);
-  return kindsOf(type, checker)
+  const classify = options.json ? jsonKindOf : kindOf;
+  return constituents(type)
+    .map((t) => classify(t, checker))
     .filter((k) => k !== 'null' && k !== 'undefined')
     .every((k) => ref.kinds.includes(k));
 }

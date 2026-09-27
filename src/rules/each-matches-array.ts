@@ -1,7 +1,7 @@
 import { ESLintUtils } from '@typescript-eslint/utils';
 import { createRule } from '../core/create-rule';
-import { getKnownDecorators, isTrueLiteral, propertyName } from '../core/decorators';
-import { hasCollection, isCollection, isUncheckable } from '../core/type-compare';
+import { getKnownDecorators, propertyName, readBooleanOption } from '../core/decorators';
+import { hasCollection, isArrayLike, isCollection, isUncheckable, nonNullish } from '../core/type-compare';
 import { VALIDATOR_KINDS } from './validator-matches-type';
 
 /** Validators that check a single value, so an array property needs `{ each: true }`. */
@@ -42,11 +42,21 @@ export const eachMatchesArray = createRule({
         const anyCollection = hasCollection(type, checker);
         const data = { property: propertyName(node), actual: checker.typeToString(type) };
 
+        // `IsObject` accepts Set / Map instances; only arrays and tuples make it fail.
+        const onlyArrays = nonNullish(type).every((t) => isArrayLike(t, checker));
+
         for (const decorator of decorators) {
-          const each = isTrueLiteral(decorator.options.get('each'));
+          const state = readBooleanOption(decorator, 'each', services);
+          if (state === 'unknown') continue;
+          const each = state === 'true';
           if (each && !anyCollection) {
             context.report({ node: decorator.node, messageId: 'eachOnNonCollection', data: { ...data, decorator: decorator.name } });
-          } else if (!each && allCollections && isScalarValidator(decorator.name)) {
+          } else if (
+            !each &&
+            allCollections &&
+            isScalarValidator(decorator.name) &&
+            (decorator.name !== 'IsObject' || onlyArrays)
+          ) {
             context.report({ node: decorator.node, messageId: 'collectionWithoutEach', data: { ...data, decorator: decorator.name } });
           }
         }

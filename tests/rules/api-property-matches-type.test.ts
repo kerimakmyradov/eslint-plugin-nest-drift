@@ -3,6 +3,28 @@ import { ruleTester } from '../rule-tester';
 
 ruleTester.run('api-property-matches-type', apiPropertyMatchesType, {
   valid: [
+    // review: raw OpenAPI array forms
+    `import { ApiProperty } from '@nestjs/swagger';
+     import { Type } from 'class-transformer';
+     import { ValidateNested } from 'class-validator';
+     class Foo { a!: string; }
+     class Dto {
+       @ApiProperty({ type: 'array', items: { type: 'string' } }) tags!: string[];
+       @ApiProperty({ type: 'array', items: { $ref: '#/components/schemas/Foo' } }) @ValidateNested({ each: true }) @Type(() => Foo) foos!: Foo[];
+       @ApiProperty({ type: Array }) list!: string[];
+     }`,
+    // review: file uploads documented as binary strings
+    `import { ApiProperty } from '@nestjs/swagger';
+     interface UploadedFile { fieldname: string; buffer: Uint8Array }
+     class Dto {
+       @ApiProperty({ type: 'string', format: 'binary' }) file!: UploadedFile;
+       @ApiProperty({ type: 'string', format: 'binary', isArray: true }) files!: UploadedFile[];
+     }`,
+    // review: objects serialised to strings through toJSON
+    `import { ApiProperty } from '@nestjs/swagger';
+     declare class ObjectId { toJSON(): string }
+     declare class Decimal { toJSON(): string }
+     class Dto { @ApiProperty({ type: String }) _id!: ObjectId; @ApiProperty({ type: 'string' }) amount!: Decimal; }`,
     `import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
      class Item { sku!: string; }
      enum Status { Open = 'open' }
@@ -40,6 +62,17 @@ ruleTester.run('api-property-matches-type', apiPropertyMatchesType, {
      }`,
   ],
   invalid: [
+    // review: raw OpenAPI array whose items contradict the element type
+    {
+      code: `import { ApiProperty } from '@nestjs/swagger';
+             class Dto { @ApiProperty({ type: 'array', items: { type: 'number' } }) tags!: string[]; }`,
+      errors: [{ messageId: 'typeMismatch', data: { decorator: 'ApiProperty', documented: "'number'", property: 'tags', actual: 'string[]' } }],
+    },
+    {
+      code: `import { ApiProperty } from '@nestjs/swagger';
+             class Dto { @ApiProperty({ type: 'array' }) tag!: string; }`,
+      errors: [{ messageId: 'isArrayOnNonCollection' }],
+    },
     {
       code: `import { ApiProperty } from '@nestjs/swagger';
              class Dto { @ApiProperty({ type: Number }) id!: string; }`,

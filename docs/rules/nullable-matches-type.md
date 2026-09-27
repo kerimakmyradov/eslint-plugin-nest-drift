@@ -38,4 +38,13 @@ class Dto {
 
 - Only `null` is checked. `?` / `undefined` vs `@IsOptional()` and `required` are covered by
   `@darraghor/eslint-plugin-nestjs-typed`.
-- A non-literal `nullable: someFlag` is skipped.
+- A non-literal `nullable: someFlag`, a spread or a shared options object is skipped.
+- `@Allow()`, `@IsEmpty()`, `@IsIn([..., null])` and `@Equals(null)` also accept `null`.
+- Projects without `strictNullChecks` (`strict: false`): TypeScript erases `| null` there, so the rule
+  turns itself off — it cannot see nullability at all.
+
+## When not to use it
+
+If your global `ValidationPipe` uses `skipNullProperties` or `skipMissingProperties`, `null` passes
+validation everywhere by design. Keep the swagger half by leaving the rule on and ignoring
+`nullRejected`, or turn the rule off.

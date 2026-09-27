@@ -3,6 +3,20 @@ import { ruleTester } from '../rule-tester';
 
 ruleTester.run('each-matches-array', eachMatchesArray, {
   valid: [
+    // review: shared options objects
+    `import { IsString } from 'class-validator';
+     const EACH = { each: true };
+     class Dto { @IsString(EACH) tags!: string[]; }`,
+    // review: IsObject accepts Map / Set instances
+    `import { IsObject } from 'class-validator';
+     class Dto { @IsObject() config!: Map<string, string>; @IsObject() ids!: Set<string>; }`,
+    // review: a domain class named Map is not a collection
+    `import { IsObject } from 'class-validator';
+     class Map { id!: string; }
+     class Dto { @IsObject() map!: Map; }`,
+    // review: branded arrays are arrays
+    `import { IsString } from 'class-validator';
+     class Dto { @IsString({ each: true }) tags!: string[] & { readonly __brand: 'Tags' }; }`,
     `import { IsString, IsInt } from 'class-validator';
      class Dto {
        @IsString({ each: true }) tags!: string[];

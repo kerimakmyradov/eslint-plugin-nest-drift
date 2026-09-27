@@ -1,7 +1,7 @@
 import { AST_NODE_TYPES, ESLintUtils } from '@typescript-eslint/utils';
 import type { TSESTree } from '@typescript-eslint/utils';
 import { createRule } from '../core/create-rule';
-import { getKnownDecorators, isTrueLiteral, propertyName, resolveSymbol } from '../core/decorators';
+import { getKnownDecorators, propertyName, readBooleanOption, resolveSymbol } from '../core/decorators';
 import {
   collectionElementType,
   enumValueTypes,
@@ -13,6 +13,29 @@ import {
 import { matchesTypeRef, resolveTypeRef, type TypeRef } from '../core/type-ref';
 
 const API_PROPERTY_DECORATORS: ReadonlySet<string> = new Set(['ApiProperty', 'ApiPropertyOptional']);
+
+/** Formats whose values are not what `type` says in TypeScript terms (file uploads, base64 buffers). */
+const OPAQUE_FORMATS: ReadonlySet<string> = new Set(['binary', 'byte']);
+
+function isArrayRef(ref: TypeRef | undefined): boolean {
+  return ref !== undefined && 'kinds' in ref && ref.kinds.length === 1 && ref.kinds[0] === 'array';
+}
+
+/** `items: { type: 'string' }` of a raw OpenAPI array. */
+function itemsTypeNode(items: TSESTree.Node | undefined): TSESTree.Node | undefined {
+  if (items?.type !== AST_NODE_TYPES.ObjectExpression) return undefined;
+  for (const prop of items.properties) {
+    if (
+      prop.type === AST_NODE_TYPES.Property &&
+      !prop.computed &&
+      prop.key.type === AST_NODE_TYPES.Identifier &&
+      prop.key.name === 'type'
+    ) {
+      return prop.value;
+    }
+  }
+  return undefined;
+}
 
 /** JSON has no Date: swagger documents dates as strings, so string ↔ Date is not drift. */
 function widenForJson(ref: TypeRef): TypeRef {
@@ -56,8 +79,14 @@ export const apiPropertyMatchesType = createRule({
           const data = { ...base, decorator: decorator.name };
           const typeNode = decorator.options.get('type');
           const enumNode = decorator.options.get('enum');
+          const format = decorator.options.get('format');
+          if (format?.type === AST_NODE_TYPES.Literal && OPAQUE_FORMATS.has(String(format.value))) continue;
+          const isArray = readBooleanOption(decorator, 'isArray', services);
+          if (isArray === 'unknown') continue;
           const arrayForm = typeNode?.type === AST_NODE_TYPES.ArrayExpression; // type: [Foo]
-          const documentedArray = arrayForm || isTrueLiteral(decorator.options.get('isArray'));
+          const typeRef = typeNode && !arrayForm ? resolveTypeRef(typeNode, services) : undefined;
+          const rawArray = isArrayRef(typeRef); // type: 'array' / type: Array
+          const documentedArray = arrayForm || rawArray || isArray === 'true';
 
           if (documentedArray && !hasCollection(propertyType, checker)) {
             context.report({ node: decorator.node, messageId: 'isArrayOnNonCollection', data });
@@ -72,9 +101,11 @@ export const apiPropertyMatchesType = createRule({
 
           const refNode: TSESTree.Node | undefined = arrayForm
             ? (typeNode as TSESTree.ArrayExpression).elements[0] ?? undefined
-            : typeNode;
+            : rawArray
+              ? itemsTypeNode(decorator.options.get('items'))
+              : typeNode;
           const ref = refNode && refNode.type !== AST_NODE_TYPES.SpreadElement ? resolveTypeRef(refNode, services) : undefined;
-          if (ref && !matchesTypeRef(widenForJson(ref), checked, checker)) {
+          if (ref && !matchesTypeRef(widenForJson(ref), checked, checker, { json: true })) {
             context.report({ node: decorator.node, messageId: 'typeMismatch', data: { ...data, documented: ref.label } });
             continue;
           }

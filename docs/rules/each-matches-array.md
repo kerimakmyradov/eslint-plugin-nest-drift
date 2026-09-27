@@ -41,3 +41,7 @@ class FilterDto {
   [`@darraghor/eslint-plugin-nestjs-typed`](https://github.com/darraghoriordan/eslint-plugin-nestjs-typed)
   for its style rules.
 - A union such as `string | string[]` never triggers the "missing `each`" report.
+- `@IsObject()` on a `Set` or `Map` is fine — only arrays make it fail.
+- Branded arrays (`string[] & { __brand: 'Tags' }`) are arrays; a user class named `Map` or `Set` is not.
+- A shared options object (`@IsString(EACH)`) is read through the type checker; if its `each` is not a
+  literal `true`/`false`, the decorator is skipped.

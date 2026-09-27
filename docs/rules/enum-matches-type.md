@@ -43,3 +43,6 @@ class Dto {
 - Values are compared the way they exist at runtime: `Status.Open = 'open'` and `'open'` are equal.
 - For an object without `as const` only the "property wider than enum" direction is checked.
 - Non-literal `@IsIn()` arguments (variables, spreads) are skipped.
+- An array validated without `{ each: true }` is reported only by [`each-matches-array`](./each-matches-array.md).
+- A type inferred from a default value (`readonly order = SortOrder.Asc`) is not treated as a contract:
+  only annotated types are checked for "enum wider than the property".

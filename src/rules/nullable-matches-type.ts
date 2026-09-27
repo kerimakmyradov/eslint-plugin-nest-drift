@@ -1,9 +1,26 @@
 import { AST_NODE_TYPES, ESLintUtils } from '@typescript-eslint/utils';
+import type { DecoratorInfo } from '../core/decorators';
 import { createRule } from '../core/create-rule';
-import { getKnownDecorators, isTrueLiteral, propertyName } from '../core/decorators';
+import { getKnownDecorators, propertyName, readBooleanOption } from '../core/decorators';
 import { hasNull, isUncheckable } from '../core/type-compare';
 
-const NULL_ALLOWING_VALIDATORS: ReadonlySet<string> = new Set(['IsOptional', 'ValidateIf']);
+const NULL_ALLOWING_VALIDATORS: ReadonlySet<string> = new Set(['IsOptional', 'ValidateIf', 'Allow', 'IsEmpty']);
+
+function isNullLiteral(node: unknown): boolean {
+  const n = node as { type?: string; value?: unknown; raw?: string } | undefined;
+  return n?.type === AST_NODE_TYPES.Literal && n.value === null && n.raw === 'null';
+}
+
+/** Validators that let `null` through: `@IsOptional()`, `@IsIn([..., null])`, `@Equals(null)`, … */
+function allowsNull(decorator: DecoratorInfo): boolean {
+  if (NULL_ALLOWING_VALIDATORS.has(decorator.name)) return true;
+  const [first] = decorator.args;
+  if (decorator.name === 'Equals') return isNullLiteral(first);
+  if (decorator.name === 'IsIn' && first?.type === AST_NODE_TYPES.ArrayExpression) {
+    return first.elements.some(isNullLiteral);
+  }
+  return false;
+}
 const API_PROPERTY_DECORATORS: ReadonlySet<string> = new Set(['ApiProperty', 'ApiPropertyOptional']);
 
 export const nullableMatchesType = createRule({
@@ -27,6 +44,9 @@ export const nullableMatchesType = createRule({
   create(context) {
     const services = ESLintUtils.getParserServices(context);
     const checker = services.program.getTypeChecker();
+    // Without strictNullChecks TypeScript erases `| null`, so nullability cannot be compared at all.
+    const compilerOptions = services.program.getCompilerOptions();
+    if (!(compilerOptions.strictNullChecks ?? compilerOptions.strict ?? false)) return {};
     return {
       PropertyDefinition(node) {
         const decorators = getKnownDecorators(node, services);
@@ -37,16 +57,16 @@ export const nullableMatchesType = createRule({
         const data = { property: propertyName(node), actual: checker.typeToString(type) };
 
         const validators = decorators.filter((d) => d.module === 'class-validator');
-        if (nullable && validators.length > 0 && !validators.some((d) => NULL_ALLOWING_VALIDATORS.has(d.name))) {
+        if (nullable && validators.length > 0 && !validators.some(allowsNull)) {
           context.report({ node: validators[0]!.node, messageId: 'nullRejected', data });
         }
 
         for (const decorator of decorators) {
           if (decorator.module !== '@nestjs/swagger' || !API_PROPERTY_DECORATORS.has(decorator.name)) continue;
-          const option = decorator.options.get('nullable');
-          // Non-literal `nullable: someFlag` cannot be judged.
-          if (option && option.type !== AST_NODE_TYPES.Literal) continue;
-          const documentedNullable = isTrueLiteral(option);
+          // Non-literal `nullable: someFlag`, spreads and shared option objects cannot be judged.
+          const option = readBooleanOption(decorator, 'nullable', services);
+          if (option === 'unknown') continue;
+          const documentedNullable = option === 'true';
           if (nullable && !documentedNullable) {
             context.report({ node: decorator.node, messageId: 'swaggerMissingNullable', data: { ...data, decorator: decorator.name } });
           } else if (!nullable && documentedNullable) {

@@ -14,3 +14,13 @@ export const ruleTester = new RuleTester({
     },
   },
 });
+
+/** Same harness for projects with `strict: false` (common in older NestJS apps). */
+export const looseRuleTester = new RuleTester({
+  languageOptions: {
+    parserOptions: {
+      project: './tsconfig.json',
+      tsconfigRootDir: `${import.meta.dirname}/fixtures/loose`,
+    },
+  },
+});

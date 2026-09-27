@@ -38,7 +38,11 @@ class Dto {
 
 ## Notes
 
-- `string` and `Date` are interchangeable here, because JSON carries dates as strings.
+- Types are compared as they look in JSON: `Date` and any class with a string-returning `toJSON()`
+  (Mongo `ObjectId`, `Decimal`) count as strings.
+- Raw OpenAPI arrays are understood: `{ type: 'array', items: { type: 'string' } }` and `{ type: Array }`.
+- `format: 'binary'` / `'byte'` (file uploads, base64) are not compared with the TypeScript type.
+- Shared options objects and spreads (`@ApiProperty(OPTS)`) are skipped.
 - A missing `isArray` on an array property is **not** reported — `@darraghor/eslint-plugin-nestjs-typed`
   already covers it (`api-property-returning-array-should-set-array`).
 - `nullable` is checked by [`nullable-matches-type`](./nullable-matches-type.md).

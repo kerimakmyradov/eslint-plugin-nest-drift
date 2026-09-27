@@ -1,6 +1,6 @@
 import { ESLintUtils } from '@typescript-eslint/utils';
 import { createRule } from '../core/create-rule';
-import { getKnownDecorators, isTrueLiteral, propertyName } from '../core/decorators';
+import { getKnownDecorators, propertyName, readBooleanOption } from '../core/decorators';
 import { collectionElementType, hasCollection, isUncheckable, kindsOf, type Kind } from '../core/type-compare';
 
 /** class-validator decorator → TS kinds it accepts. Kind-agnostic decorators are absent on purpose. */
@@ -64,7 +64,9 @@ export const validatorMatchesType = createRule({
         for (const decorator of decorators) {
           const expected = VALIDATOR_KINDS[decorator.name]!;
           let checked = propertyType;
-          if (isTrueLiteral(decorator.options.get('each'))) {
+          const each = readBooleanOption(decorator, 'each', services);
+          if (each === 'unknown') continue;
+          if (each === 'true') {
             const element = collectionElementType(propertyType, checker);
             if (!element) continue; // reported by each-matches-array
             checked = element;

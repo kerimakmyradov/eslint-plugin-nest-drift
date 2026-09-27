@@ -25,6 +25,18 @@ const UNCHECKABLE =
 
 const PRIMITIVE_KINDS: ReadonlySet<Kind> = new Set(['string', 'number', 'boolean', 'bigint']);
 
+const LIB_FILE = /(?:^|[\\/])lib\.[\w.-]+\.d\.ts$/;
+
+/** Declared in TypeScript's own `lib.*.d.ts` (so a user's `class Map {}` does not count). */
+function isLibSymbol(symbol: ts.Symbol | undefined): boolean {
+  return (symbol?.declarations ?? []).some((d) => LIB_FILE.test(d.getSourceFile().fileName));
+}
+
+function libName(type: ts.Type): string | undefined {
+  const symbol = type.getSymbol();
+  return symbol && isLibSymbol(symbol) ? symbol.getName() : undefined;
+}
+
 export function constituents(type: ts.Type): readonly ts.Type[] {
   return type.isUnion() ? type.types : [type];
 }
@@ -55,19 +67,33 @@ export function kindOf(type: ts.Type, checker: ts.TypeChecker): Kind {
     return kinds.length === 1 ? kinds[0]! : 'unknown';
   }
   if (type.isIntersection()) {
-    // Branded primitives: `number & { __brand: 'Money' }` behave as `number` at runtime.
+    // Branded primitives / arrays: `number & { __brand: 'Money' }` behaves as `number` at runtime.
     const kinds = type.types.map((t) => kindOf(t, checker));
     if (kinds.includes('unknown')) return 'unknown';
-    return kinds.find((k) => PRIMITIVE_KINDS.has(k)) ?? 'object';
+    return kinds.find((k) => PRIMITIVE_KINDS.has(k)) ?? (kinds.includes('array') ? 'array' : 'object');
   }
   if (checker.isArrayType(type) || checker.isTupleType(type)) return 'array';
-  if (type.getSymbol()?.getName() === 'Date') return 'date';
+  if (libName(type) === 'Date') return 'date';
   return 'object';
 }
 
 /** Distinct kinds of every union constituent. */
 export function kindsOf(type: ts.Type, checker: ts.TypeChecker): Kind[] {
   return [...new Set(constituents(type).map((t) => kindOf(t, checker)))];
+}
+
+/**
+ * Kind of the value after `JSON.stringify`: objects with a string-returning `toJSON`
+ * (Date, ObjectId, Decimal) become strings.
+ */
+export function jsonKindOf(type: ts.Type, checker: ts.TypeChecker): Kind {
+  const kind = kindOf(type, checker);
+  if (kind !== 'object' && kind !== 'date') return kind;
+  const toJSON = type.getProperty('toJSON');
+  if (!toJSON) return kind;
+  const signatures = checker.getTypeOfSymbol(toJSON).getCallSignatures();
+  const returns = signatures.map((sig) => kindOf(checker.getReturnTypeOfSignature(sig), checker));
+  return returns.length > 0 && returns.every((k) => k === 'string') ? 'string' : kind;
 }
 
 /** True when the type (or a union member) is any/unknown/generic, so nothing can be said about it. */
@@ -80,9 +106,16 @@ const MAP_NAMES: ReadonlySet<string> = new Set(['Map', 'ReadonlyMap']);
 
 /** Arrays, tuples, Sets and Maps: everything class-validator's `{ each: true }` iterates. */
 export function isCollectionType(type: ts.Type, checker: ts.TypeChecker): boolean {
+  if (type.isIntersection()) return type.types.some((t) => isCollectionType(t, checker)); // branded arrays
   if (checker.isArrayType(type) || checker.isTupleType(type)) return true;
-  const name = type.getSymbol()?.getName();
+  const name = libName(type);
   return name !== undefined && (SET_NAMES.has(name) || MAP_NAMES.has(name));
+}
+
+/** Arrays and tuples only — `Set` / `Map` instances are plain objects for `IsObject`. */
+export function isArrayLike(type: ts.Type, checker: ts.TypeChecker): boolean {
+  if (type.isIntersection()) return type.types.some((t) => isArrayLike(t, checker));
+  return checker.isArrayType(type) || checker.isTupleType(type);
 }
 
 /** Every non-nullish constituent is a collection. */
@@ -97,8 +130,15 @@ export function hasCollection(type: ts.Type, checker: ts.TypeChecker): boolean {
 }
 
 function elementOf(type: ts.Type, checker: ts.TypeChecker): ts.Type | undefined {
+  if (type.isIntersection()) {
+    for (const part of type.types) {
+      const element = elementOf(part, checker);
+      if (element) return element;
+    }
+    return undefined;
+  }
   if (checker.isArrayType(type)) return checker.getTypeArguments(type as ts.TypeReference)[0];
-  const name = type.getSymbol()?.getName();
+  const name = libName(type);
   if (name && SET_NAMES.has(name)) return checker.getTypeArguments(type as ts.TypeReference)[0];
   if (name && MAP_NAMES.has(name)) return checker.getTypeArguments(type as ts.TypeReference)[1];
   return undefined; // tuples are heterogeneous: no single element type
