@@ -1,6 +1,9 @@
 import { apiPropertyMatchesType } from './api-property-matches-type';
 import { eachMatchesArray } from './each-matches-array';
 import { enumMatchesType } from './enum-matches-type';
+import { guardCoversRequiredProperties } from './guard-covers-required-properties';
+import { guardDiscriminantMatchesType } from './guard-discriminant-matches-type';
+import { guardInCheckMatchesType } from './guard-in-check-matches-type';
 import { nestedTypeMatches } from './nested-type-matches';
 import { nullableMatchesType } from './nullable-matches-type';
 import { validatorMatchesType } from './validator-matches-type';
@@ -12,4 +15,7 @@ export const rules = {
   'each-matches-array': eachMatchesArray,
   'api-property-matches-type': apiPropertyMatchesType,
   'nullable-matches-type': nullableMatchesType,
+  'guard-discriminant-matches-type': guardDiscriminantMatchesType,
+  'guard-in-check-matches-type': guardInCheckMatchesType,
+  'guard-covers-required-properties': guardCoversRequiredProperties,
 };

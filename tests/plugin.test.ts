@@ -1,35 +1,51 @@
 import { describe, expect, it } from 'vitest';
 import plugin from '../src/index';
 
+const ALL_RULES = [
+  'api-property-matches-type',
+  'each-matches-array',
+  'enum-matches-type',
+  'guard-covers-required-properties',
+  'guard-discriminant-matches-type',
+  'guard-in-check-matches-type',
+  'nested-type-matches',
+  'nullable-matches-type',
+  'validator-matches-type',
+];
+const OPT_IN_RULES = ['guard-covers-required-properties'];
+const RECOMMENDED_RULES = ALL_RULES.filter((name) => !OPT_IN_RULES.includes(name));
+
+const prefixed = (names: string[]) => names.map((name) => `nest-drift/${name}`).sort();
+
 describe('plugin', () => {
   it('exposes all rules', () => {
-    expect(Object.keys(plugin.rules).sort()).toEqual([
-      'api-property-matches-type',
-      'each-matches-array',
-      'enum-matches-type',
-      'nested-type-matches',
-      'nullable-matches-type',
-      'validator-matches-type',
-    ]);
+    expect(Object.keys(plugin.rules).sort()).toEqual(ALL_RULES);
   });
 
-  it('recommended config enables every rule as error and registers the plugin', () => {
+  it('recommended enables every recommended rule as error and registers the plugin', () => {
     const config = plugin.configs.recommended;
     expect(config.plugins?.['nest-drift']).toBe(plugin);
     expect(config.files).toEqual(['**/*.ts', '**/*.mts', '**/*.cts']);
-    expect(Object.keys(config.rules ?? {})).toHaveLength(Object.keys(plugin.rules).length);
-    for (const [name, level] of Object.entries(config.rules ?? {})) {
-      expect(name.startsWith('nest-drift/')).toBe(true);
-      expect(level).toBe('error');
-    }
+    expect(Object.keys(config.rules ?? {}).sort()).toEqual(prefixed(RECOMMENDED_RULES));
+    expect(new Set(Object.values(config.rules ?? {}))).toEqual(new Set(['error']));
   });
 
-  it('legacy-recommended config works for .eslintrc (ESLint 8)', () => {
-    const config = plugin.configs['legacy-recommended'];
-    expect(config.plugins).toEqual(['nest-drift']);
-    expect(config.overrides).toEqual([
-      { files: ['*.ts', '*.mts', '*.cts'], rules: plugin.configs.recommended.rules },
-    ]);
+  it('strict enables every rule', () => {
+    const config = plugin.configs.strict;
+    expect(config.plugins?.['nest-drift']).toBe(plugin);
+    expect(config.files).toEqual(['**/*.ts', '**/*.mts', '**/*.cts']);
+    expect(Object.keys(config.rules ?? {}).sort()).toEqual(prefixed(ALL_RULES));
+  });
+
+  it('legacy configs mirror the flat ones for .eslintrc (ESLint 8)', () => {
+    expect(plugin.configs['legacy-recommended']).toEqual({
+      plugins: ['nest-drift'],
+      overrides: [{ files: ['*.ts', '*.mts', '*.cts'], rules: plugin.configs.recommended.rules }],
+    });
+    expect(plugin.configs['legacy-strict']).toEqual({
+      plugins: ['nest-drift'],
+      overrides: [{ files: ['*.ts', '*.mts', '*.cts'], rules: plugin.configs.strict.rules }],
+    });
   });
 
   it('every rule requires type checking and links to its docs', () => {

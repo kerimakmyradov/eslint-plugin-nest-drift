@@ -32,3 +32,20 @@ export {
   type Kind,
 } from './type-compare';
 export { matchesTypeRef, resolveTypeRef, type TypeRef } from './type-ref';
+export {
+  conjuncts,
+  getTypeGuard,
+  isParamRef,
+  isShaped,
+  memberHasProperty,
+  readDiscriminantCheck,
+  readInCheck,
+  readParamAccess,
+  requiredDataProperties,
+  unwrap,
+  walkOwnBody,
+  type Conjunct,
+  type GuardFunction,
+  type PropertyPresence,
+  type TypeGuard,
+} from './guards';
