@@ -1,6 +1,6 @@
 # eslint-plugin-nest-drift
 
-ESLint rules that catch **drift between decorators and TypeScript types** in NestJS DTOs.
+ESLint rules that catch **drift between decorators and TypeScript types** in NestJS DTOs and TypeORM entities.
 
 ```ts
 class CreatePaymentDto {
@@ -52,7 +52,7 @@ export default [
 ```
 
 **Stricter checks:** use `nestDrift.configs.strict` (flat) or `plugin:nest-drift/legacy-strict`
-(`.eslintrc`) to also enable the opt-in rules.
+(`.eslintrc`) to also enable the opt-in rules and checks.
 
 Errors appear in your editor through the standard ESLint extension and fail CI through `eslint .`.
 
@@ -71,6 +71,8 @@ Errors appear in your editor through the standard ESLint extension and fail CI t
 | [guard-discriminant-matches-type](docs/rules/guard-discriminant-matches-type.md) | `x.kind === Kind.Square` in a guard that promises a type without that `kind` | 💼 | 💭 |
 | [guard-in-check-matches-type](docs/rules/guard-in-check-matches-type.md) | `'k' in x` / `!('k' in x)` contradicting the guarded type, or checks that narrow nothing | 💼 | 💭 |
 | [guard-covers-required-properties](docs/rules/guard-covers-required-properties.md) | a guard on `unknown` that never checks some required property | 🔒 | 💭 |
+| [column-matches-type](docs/rules/column-matches-type.md) | `@Column('decimal') amount: number` (read as string), `date` on `Date`, `nullable: true` without `\| null` | 💼 | 💭 |
+| [plain-to-instance-matches-source](docs/rules/plain-to-instance-matches-source.md) | `plainToInstance(Dto, entity)` copying a `string` into a `number` field; exposed fields the entity lacks (🔒) | 💼 | 💭 |
 
 Rules stay silent when they cannot be sure: `any`, `unknown`, generics, your own decorators,
 discriminated `@Type`, non-literal options. False positives are treated as bugs — please
@@ -109,7 +111,8 @@ It is experimental until 1.0.
 
 ## Roadmap
 
-- **0.3** — entity ↔ DTO drift: a field added or changed in the entity but not in the DTO.
+- ORMs beyond TypeORM (MikroORM, Mongoose) and TypeORM relations — on demand,
+  [open an issue](https://github.com/kerimakmyradov/eslint-plugin-nest-drift/issues).
 
 ## License
 

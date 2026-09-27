@@ -35,7 +35,7 @@ const eslint = legacy
       ],
     });
 
-const results = await eslint.lintFiles(['create-order.dto.ts', 'shape-guards.ts']);
+const results = await eslint.lintFiles(['create-order.dto.ts', 'shape-guards.ts', 'payment.entity.ts']);
 const actual = results
   .flatMap((r) => r.messages.map((m) => `${r.filePath.split(/[\\/]/).pop()}:${m.line}:${m.ruleId}`))
   .sort();
@@ -48,6 +48,8 @@ const expected = [
   'create-order.dto.ts:16:nest-drift/nullable-matches-type',
   'shape-guards.ts:8:nest-drift/guard-discriminant-matches-type',
   'shape-guards.ts:9:nest-drift/guard-in-check-matches-type',
+  'payment.entity.ts:7:nest-drift/column-matches-type',
+  'payment.entity.ts:12:nest-drift/plain-to-instance-matches-source',
 ].sort();
 
 if (JSON.stringify(actual) !== JSON.stringify(expected)) {

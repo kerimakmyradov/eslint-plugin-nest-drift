@@ -17,16 +17,26 @@ const plugin = {
   },
 };
 
-function ruleLevels(onlyRecommended: boolean): Record<string, 'error'> {
+type RuleEntry = 'error' | ['error', Record<string, unknown>];
+
+/** Options the `strict` configs pass to rules whose stricter checks are opt-in. */
+const STRICT_OPTIONS: Partial<Record<keyof typeof rules, Record<string, unknown>>> = {
+  'plain-to-instance-matches-source': { checkMissing: true },
+};
+
+function ruleLevels(strict: boolean): Record<string, RuleEntry> {
   return Object.fromEntries(
     Object.entries(rules)
-      .filter(([, rule]) => !onlyRecommended || rule.meta.docs?.recommended)
-      .map(([name]) => [`${PLUGIN_NAME}/${name}`, 'error']),
-  ) as Record<string, 'error'>;
+      .filter(([, rule]) => strict || rule.meta.docs?.recommended)
+      .map(([name]) => {
+        const options = strict ? STRICT_OPTIONS[name as keyof typeof rules] : undefined;
+        return [`${PLUGIN_NAME}/${name}`, options ? ['error', options] : 'error'];
+      }),
+  );
 }
 
-const recommendedRules = ruleLevels(true);
-const strictRules = ruleLevels(false);
+const recommendedRules = ruleLevels(false);
+const strictRules = ruleLevels(true);
 
 plugin.configs.recommended = {
   name: `${PLUGIN_NAME}/recommended`,

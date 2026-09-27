@@ -37,6 +37,8 @@ describe('plugin', () => {
     expect(config.plugins?.['nest-drift']).toBe(plugin);
     expect(config.files).toEqual(['**/*.ts', '**/*.mts', '**/*.cts']);
     expect(Object.keys(config.rules ?? {}).sort()).toEqual(prefixed(ALL_RULES));
+    expect(config.rules?.['nest-drift/plain-to-instance-matches-source']).toEqual(['error', { checkMissing: true }]);
+    expect(config.rules?.['nest-drift/column-matches-type']).toBe('error');
   });
 
   it('legacy configs mirror the flat ones for .eslintrc (ESLint 8)', () => {
