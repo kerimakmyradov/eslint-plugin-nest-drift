@@ -2,13 +2,16 @@ import { AST_NODE_TYPES, ESLintUtils } from '@typescript-eslint/utils';
 import type { TSESTree } from '@typescript-eslint/utils';
 import { createRule } from '../core/create-rule';
 import { getKnownDecorators, propertyName, readBooleanOption, resolveSymbol } from '../core/decorators';
+import ts from 'typescript';
 import {
   collectionElementType,
+  constituents,
   enumValueTypes,
   hasCollection,
   isCollection,
   isCoveredBy,
   isUncheckable,
+  kindsOf,
 } from '../core/type-compare';
 import { matchesTypeRef, resolveTypeRef, type TypeRef } from '../core/type-ref';
 
@@ -113,7 +116,19 @@ export const apiPropertyMatchesType = createRule({
           if (enumNode) {
             const symbol = resolveSymbol(enumNode, services);
             const allowed = symbol && enumValueTypes(symbol, checker);
-            if (allowed && !isCoveredBy(checked, allowed, checker)) {
+            // Docs may list a subset of what the property holds; they must not promise values it cannot hold.
+            // Literal values are compared by value; widened ones (`const Side = { Buy: 'buy' }`) by kind.
+            const propertyKinds = new Set(kindsOf(checked, checker));
+            const documentsImpossible =
+              allowed !== undefined &&
+              allowed.some((value) =>
+                isUncheckable(value, checker)
+                  ? false
+                  : value.isLiteral() || (value.flags & ts.TypeFlags.BooleanLiteral) !== 0
+                  ? !isCoveredBy(value, [...constituents(checked)], checker)
+                  : !kindsOf(value, checker).every((kind) => propertyKinds.has(kind) || kind === 'null' || kind === 'undefined'),
+              );
+            if (documentsImpossible) {
               context.report({
                 node: decorator.node,
                 messageId: 'enumMismatch',
