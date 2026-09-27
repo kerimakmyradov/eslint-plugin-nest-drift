@@ -1,0 +1,25 @@
+name: New rule / feature
+description: Propose a new check or an option for an existing rule
+labels: [enhancement, needs-triage]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The drift you want caught
+      description: Show the incorrect code and explain the runtime consequence.
+      render: ts
+    validations:
+      required: true
+  - type: textarea
+    id: correct
+    attributes:
+      label: Correct code that must NOT be reported
+      description: Examples that keep the rule free of false positives.
+      render: ts
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Existing rules or plugins that overlap, edge cases, prior art.

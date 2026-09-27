@@ -1,0 +1,67 @@
+name: False positive
+description: A rule reports code that is actually correct
+labels: [false-positive, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! False positives are treated as bugs.
+        Please reduce the code to the smallest DTO that still reproduces the report.
+  - type: dropdown
+    id: rule
+    attributes:
+      label: Rule
+      options:
+        - validator-matches-type
+        - enum-matches-type
+        - nested-type-matches
+        - each-matches-array
+        - api-property-matches-type
+        - nullable-matches-type
+    validations:
+      required: true
+  - type: textarea
+    id: code
+    attributes:
+      label: Minimal code
+      description: A self-contained DTO (imports included) that triggers the report.
+      render: ts
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: ESLint output
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why this code is correct
+      description: What happens at runtime / why the decorator and the type actually agree.
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: eslint-plugin-nest-drift, ESLint, TypeScript, class-validator, @nestjs/swagger
+      placeholder: "plugin 0.1.0, eslint 9.x, typescript 5.x, class-validator 0.14.x, @nestjs/swagger 8.x"
+    validations:
+      required: true
+  - type: dropdown
+    id: config
+    attributes:
+      label: Config style
+      options:
+        - Flat config (eslint.config.*)
+        - Legacy .eslintrc
+    validations:
+      required: true
+  - type: textarea
+    id: tsconfig
+    attributes:
+      label: Relevant tsconfig options
+      description: At least `strict` / `strictNullChecks`.
+      render: json
