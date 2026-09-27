@@ -51,11 +51,14 @@ export default [
 }
 ```
 
+**Stricter checks:** use `nestDrift.configs.strict` (flat) or `plugin:nest-drift/legacy-strict`
+(`.eslintrc`) to also enable the opt-in rules.
+
 Errors appear in your editor through the standard ESLint extension and fail CI through `eslint .`.
 
 ## Rules
 
-💼 in `recommended` · 💭 requires type information
+💼 in `recommended` and `strict` · 🔒 in `strict` only · 💭 requires type information
 
 | Rule | Catches | 💼 | 💭 |
 |---|---|---|---|
@@ -65,6 +68,9 @@ Errors appear in your editor through the standard ESLint extension and fail CI t
 | [each-matches-array](docs/rules/each-matches-array.md) | array validated without `{ each: true }`, `each` on a scalar | 💼 | 💭 |
 | [api-property-matches-type](docs/rules/api-property-matches-type.md) | `@ApiProperty({ type: Number })` on `string`, wrong `enum`, `isArray` on a scalar | 💼 | 💭 |
 | [nullable-matches-type](docs/rules/nullable-matches-type.md) | `string \| null` rejected by validators or undocumented in Swagger | 💼 | 💭 |
+| [guard-discriminant-matches-type](docs/rules/guard-discriminant-matches-type.md) | `x.kind === Kind.Square` in a guard that promises a type without that `kind` | 💼 | 💭 |
+| [guard-in-check-matches-type](docs/rules/guard-in-check-matches-type.md) | `'k' in x` / `!('k' in x)` contradicting the guarded type, or checks that narrow nothing | 💼 | 💭 |
+| [guard-covers-required-properties](docs/rules/guard-covers-required-properties.md) | a guard on `unknown` that never checks some required property | 🔒 | 💭 |
 
 Rules stay silent when they cannot be sure: `any`, `unknown`, generics, your own decorators,
 discriminated `@Type`, non-literal options. False positives are treated as bugs — please
@@ -103,7 +109,6 @@ It is experimental until 1.0.
 
 ## Roadmap
 
-- **0.2** — type guards: `isOrder(x): x is Order` that does not check every required property.
 - **0.3** — entity ↔ DTO drift: a field added or changed in the entity but not in the DTO.
 
 ## License
